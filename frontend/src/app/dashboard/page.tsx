@@ -18,6 +18,7 @@ import { EquityChart } from "@/components/EquityChart";
 import { PositionsTable, type Position } from "@/components/PositionsTable";
 import { PerformanceCard } from "@/components/PerformanceCard";
 import { TradingCalendar } from "@/components/TradingCalendar";
+import { PageHeader } from "@/components/PageHeader";
 
 interface Account {
   id: string;
@@ -213,47 +214,47 @@ function DashboardContent() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Trading Dashboard</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {connected ? (
-                <span className="text-emerald-400">● Connected</span>
-              ) : (
-                <span className="text-red-400">● Disconnected</span>
-              )}
-              {(() => {
-                const currentAcc = accounts.find((a) => a.id === selectedAccount);
-                const mode = (status as Record<string, unknown>)?._mode;
-                const isLive = mode === "live" || currentAcc?.is_live;
-                if (status) {
-                  return isLive ? (
-                    <span className="ml-2 px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded font-medium">
-                      LIVE
-                    </span>
-                  ) : (
-                    <span className="ml-2 px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded font-medium">
-                      DEMO
-                    </span>
-                  );
-                }
-                return null;
-              })()}
-              {lastUpdate && (
-                <span className="ml-3 text-gray-500">
-                  Last update: {lastUpdate}
-                </span>
-              )}
-            </p>
-          </div>
-
-          {/* Account Selector */}
-          {accounts.length > 1 && (
+      <PageHeader
+        title="Trading Dashboard"
+        subtitle={
+          <>
+            {connected ? (
+              <span className="text-emerald-400">● Connected</span>
+            ) : (
+              <span className="text-red-400">● Disconnected</span>
+            )}
+            {(() => {
+              const currentAcc = accounts.find((a) => a.id === selectedAccount);
+              const mode = (status as Record<string, unknown>)?._mode;
+              const isLive = mode === "live" || currentAcc?.is_live;
+              if (status) {
+                return isLive ? (
+                  <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded font-medium">
+                    LIVE
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded font-medium">
+                    DEMO
+                  </span>
+                );
+              }
+              return null;
+            })()}
+            {lastUpdate && (
+              <span className="text-gray-500">
+                Last update: {lastUpdate}
+              </span>
+            )}
+          </>
+        }
+        currentPage="dashboard"
+        onLogout={handleLogout}
+        rightSlot={
+          accounts.length > 1 ? (
             <select
               value={selectedAccount}
               onChange={(e) => setSelectedAccount(e.target.value)}
-              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer min-h-[44px]"
             >
               {accounts.map((acc) => (
                 <option key={acc.id} value={acc.id}>
@@ -261,33 +262,12 @@ function DashboardContent() {
                 </option>
               ))}
             </select>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.push("/overview")}
-            className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-4 py-2 transition-colors"
-          >
-            Overview
-          </button>
-          <button
-            onClick={() => router.push("/settings")}
-            className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-4 py-2 transition-colors"
-          >
-            Settings
-          </button>
-          <button
-            onClick={handleLogout}
-            className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-4 py-2 transition-colors"
-          >
-            Logout
-          </button>
-        </div>
-      </div>
+          ) : undefined
+        }
+      />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4">
         {(() => {
           const cur = status?.currency || "USD";
           const sym = cur === "USC" ? "¢" : "$";

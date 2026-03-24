@@ -38,7 +38,7 @@ export function EquityChart({ data, currency }: { data: SnapshotPoint[]; currenc
 
   if (!data.length) {
     return (
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 flex items-center justify-center h-[370px]">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 flex items-center justify-center h-[280px] sm:h-[370px]">
         <p className="text-gray-500">No chart data yet</p>
       </div>
     );
@@ -61,12 +61,12 @@ export function EquityChart({ data, currency }: { data: SnapshotPoint[]; currenc
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
       {/* Tab bar */}
-      <div className="flex items-center gap-1 mb-3">
+      <div className="flex items-center gap-1 mb-3 flex-wrap">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+            className={`px-3 py-2 sm:py-1 rounded-md text-[11px] sm:text-xs font-medium transition-colors min-h-[36px] sm:min-h-0 ${
               tab === t.key
                 ? "bg-gray-700 text-white"
                 : "text-gray-500 hover:text-gray-300 hover:bg-gray-800"
@@ -78,7 +78,8 @@ export function EquityChart({ data, currency }: { data: SnapshotPoint[]; currenc
       </div>
 
       {/* Charts */}
-      <ResponsiveContainer width="100%" height={300}>
+      <div className="h-[250px] sm:h-[300px]">
+      <ResponsiveContainer width="100%" height="100%">
         {tab === "growth" ? (
           <AreaChart data={formatted}>
             <defs>
@@ -226,6 +227,7 @@ export function EquityChart({ data, currency }: { data: SnapshotPoint[]; currenc
           </AreaChart>
         )}
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

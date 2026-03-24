@@ -7,8 +7,10 @@ import {
   flexRender,
   createColumnHelper,
   type SortingState,
+  type VisibilityState,
 } from "@tanstack/react-table";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useIsMobile } from "@/lib/useMediaQuery";
 
 export interface Position {
   ticket: number;
@@ -55,12 +57,12 @@ const columns = [
   col.accessor("sl", {
     header: "SL",
     size: 80,
-    cell: (info) => (info.getValue() ? info.getValue().toFixed(5) : "—"),
+    cell: (info) => (info.getValue() ? info.getValue().toFixed(5) : "\u2014"),
   }),
   col.accessor("tp", {
     header: "TP",
     size: 80,
-    cell: (info) => (info.getValue() ? info.getValue().toFixed(5) : "—"),
+    cell: (info) => (info.getValue() ? info.getValue().toFixed(5) : "\u2014"),
   }),
   col.accessor("profit", {
     header: "Profit",
@@ -79,19 +81,30 @@ const columns = [
 
 export function PositionsTable({ data }: { data: Position[] }) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const isMobile = useIsMobile();
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+
+  useEffect(() => {
+    setColumnVisibility(
+      isMobile
+        ? { ticket: false, sl: false, tp: false, price_current: false }
+        : {}
+    );
+  }, [isMobile]);
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting },
+    state: { sorting, columnVisibility },
     onSortingChange: setSorting,
+    onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-800">
+      <div className="px-3 sm:px-4 py-3 border-b border-gray-800">
         <h3 className="text-sm font-medium text-gray-400">
           Open Positions ({data.length})
         </h3>
@@ -105,10 +118,10 @@ export function PositionsTable({ data }: { data: Position[] }) {
                   <th
                     key={h.id}
                     onClick={h.column.getToggleSortingHandler()}
-                    className="px-4 py-2.5 text-left text-xs text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-300 select-none"
+                    className="px-2 py-2 md:px-4 md:py-2.5 text-left text-xs text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-300 select-none"
                   >
                     {flexRender(h.column.columnDef.header, h.getContext())}
-                    {{ asc: " ↑", desc: " ↓" }[
+                    {{ asc: " \u2191", desc: " \u2193" }[
                       h.column.getIsSorted() as string
                     ] ?? ""}
                   </th>
@@ -120,7 +133,7 @@ export function PositionsTable({ data }: { data: Position[] }) {
             {table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={columns.length}
+                  colSpan={table.getVisibleLeafColumns().length}
                   className="px-4 py-8 text-center text-gray-500"
                 >
                   No open positions
@@ -133,7 +146,7 @@ export function PositionsTable({ data }: { data: Position[] }) {
                   className="border-b border-gray-800/50 hover:bg-gray-800/30"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-2.5">
+                    <td key={cell.id} className="px-2 py-2 md:px-4 md:py-2.5">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}

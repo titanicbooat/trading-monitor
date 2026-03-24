@@ -99,7 +99,7 @@ export function TradingCalendar({ account, currency }: { account: string; curren
     return { profit: Math.round(profit * 100) / 100, trades };
   });
 
-  const sym = (data?.currency || currency || "USD") === "USC" ? "¢" : "$";
+  const sym = (data?.currency || currency || "USD") === "USC" ? "\u00a2" : "$";
 
   function formatPL(val: number): string {
     const abs = Math.abs(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -109,13 +109,13 @@ export function TradingCalendar({ account, currency }: { account: string; curren
   return (
     <div className="space-y-3">
       {/* Monthly P/L + Month Navigation */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={prevMonth} className="text-gray-400 hover:text-white text-lg px-2">&lt;</button>
+          <button onClick={prevMonth} className="text-gray-400 hover:text-white text-lg px-3 py-2 min-h-[44px] min-w-[44px] flex items-center justify-center">&lt;</button>
           <span className="text-sm font-medium min-w-[100px] text-center">
             {MONTH_NAMES[month - 1]} {year}
           </span>
-          <button onClick={nextMonth} className="text-gray-400 hover:text-white text-lg px-2">&gt;</button>
+          <button onClick={nextMonth} className="text-gray-400 hover:text-white text-lg px-3 py-2 min-h-[44px] min-w-[44px] flex items-center justify-center">&gt;</button>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-400">
@@ -126,89 +126,177 @@ export function TradingCalendar({ account, currency }: { account: string; curren
           </span>
           <button
             onClick={goToday}
-            className="text-xs text-gray-400 hover:text-white border border-gray-700 rounded-lg px-3 py-1 transition-colors"
+            className="text-xs text-gray-400 hover:text-white border border-gray-700 rounded-lg px-3 py-2 min-h-[44px] transition-colors"
           >
             Today
           </button>
         </div>
       </div>
 
-      {/* Calendar Grid */}
+      {/* Calendar Content */}
       {loading ? (
         <div className="text-center text-gray-500 py-12">Loading...</div>
       ) : (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          {/* Weekday Headers */}
-          <div className="grid grid-cols-8 border-b border-gray-800">
-            {WEEKDAYS.map((d) => (
-              <div key={d} className="text-center text-xs text-gray-500 font-medium py-2">{d}</div>
-            ))}
-            <div className="text-center text-xs text-gray-500 font-medium py-2">Weekly</div>
-          </div>
+        <>
+          {/* ── Desktop: Grid View (md+) ── */}
+          <div className="hidden md:block bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+            {/* Weekday Headers */}
+            <div className="grid grid-cols-8 border-b border-gray-800">
+              {WEEKDAYS.map((d) => (
+                <div key={d} className="text-center text-xs text-gray-500 font-medium py-2">{d}</div>
+              ))}
+              <div className="text-center text-xs text-gray-500 font-medium py-2">Weekly</div>
+            </div>
 
-          {/* Weeks */}
-          {weeks.map((w, wi) => (
-            <div key={wi} className="grid grid-cols-8 border-b border-gray-800/50 last:border-b-0">
-              {w.map((day, di) => {
-                if (day === null) {
-                  return <div key={di} className="border-r border-gray-800/30 min-h-[80px]" />;
-                }
+            {/* Weeks */}
+            {weeks.map((w, wi) => (
+              <div key={wi} className="grid grid-cols-8 border-b border-gray-800/50 last:border-b-0">
+                {w.map((day, di) => {
+                  if (day === null) {
+                    return <div key={di} className="border-r border-gray-800/30 min-h-[80px]" />;
+                  }
 
-                const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                const dd = dayMap[dateKey];
-                const isToday = isCurrentMonth && day === today.getDate();
-                const hasData = !!dd;
-                const isProfit = hasData && dd.profit > 0;
-                const isLoss = hasData && dd.profit < 0;
+                  const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                  const dd = dayMap[dateKey];
+                  const isToday = isCurrentMonth && day === today.getDate();
+                  const hasData = !!dd;
+                  const isProfit = hasData && dd.profit > 0;
+                  const isLoss = hasData && dd.profit < 0;
 
-                let bgClass = "";
-                if (isProfit) bgClass = "bg-emerald-900/40";
-                else if (isLoss) bgClass = "bg-red-900/40";
+                  let bgClass = "";
+                  if (isProfit) bgClass = "bg-emerald-900/40";
+                  else if (isLoss) bgClass = "bg-red-900/40";
 
-                return (
-                  <div key={di} className={`border-r border-gray-800/30 min-h-[80px] p-1.5 flex flex-col ${bgClass}`}>
-                    <span
-                      className={`text-xs ${
-                        isToday
-                          ? "bg-blue-500 text-white w-6 h-6 rounded-full flex items-center justify-center font-bold"
-                          : "text-gray-400"
-                      }`}
-                    >
-                      {day}
-                    </span>
-                    {hasData && (
-                      <div className="mt-auto text-center">
-                        <div className={`text-xs font-bold ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
-                          {formatPL(dd.profit)}
+                  return (
+                    <div key={di} className={`border-r border-gray-800/30 min-h-[80px] p-1.5 flex flex-col ${bgClass}`}>
+                      <span
+                        className={`text-xs ${
+                          isToday
+                            ? "bg-blue-500 text-white w-6 h-6 rounded-full flex items-center justify-center font-bold"
+                            : "text-gray-400"
+                        }`}
+                      >
+                        {day}
+                      </span>
+                      {hasData && (
+                        <div className="mt-auto text-center">
+                          <div className={`text-xs font-bold ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
+                            {formatPL(dd.profit)}
+                          </div>
+                          <div className="text-[10px] text-gray-500">
+                            {dd.trades} trade{dd.trades !== 1 ? "s" : ""}
+                          </div>
                         </div>
-                        <div className="text-[10px] text-gray-500">
-                          {dd.trades} trade{dd.trades !== 1 ? "s" : ""}
-                        </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Weekly Summary */}
+                <div className="min-h-[80px] p-1.5 flex flex-col items-center justify-center bg-gray-800/30">
+                  <div className="text-[10px] text-gray-500 font-medium">Week {wi + 1}</div>
+                  <div
+                    className={`text-xs font-bold ${
+                      weeklySummaries[wi].profit > 0 ? "text-emerald-400"
+                        : weeklySummaries[wi].profit < 0 ? "text-red-400"
+                          : "text-gray-500"
+                    }`}
+                  >
+                    {formatPL(weeklySummaries[wi].profit)}
                   </div>
-                );
-              })}
-
-              {/* Weekly Summary */}
-              <div className="min-h-[80px] p-1.5 flex flex-col items-center justify-center bg-gray-800/30">
-                <div className="text-[10px] text-gray-500 font-medium">Week {wi + 1}</div>
-                <div
-                  className={`text-xs font-bold ${
-                    weeklySummaries[wi].profit > 0 ? "text-emerald-400"
-                      : weeklySummaries[wi].profit < 0 ? "text-red-400"
-                        : "text-gray-500"
-                  }`}
-                >
-                  {formatPL(weeklySummaries[wi].profit)}
-                </div>
-                <div className="text-[10px] text-gray-500">
-                  {weeklySummaries[wi].trades} trade{weeklySummaries[wi].trades !== 1 ? "s" : ""}
+                  <div className="text-[10px] text-gray-500">
+                    {weeklySummaries[wi].trades} trade{weeklySummaries[wi].trades !== 1 ? "s" : ""}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+
+          {/* ── Mobile: List View (<md) ── */}
+          <div className="block md:hidden bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+            {weeks.map((w, wi) => {
+              const weekDays = w
+                .map((day) => {
+                  if (day === null) return null;
+                  const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                  const dd = dayMap[dateKey];
+                  const isToday = isCurrentMonth && day === today.getDate();
+                  return { day, dateKey, data: dd, isToday };
+                })
+                .filter((d): d is NonNullable<typeof d> => d !== null);
+
+              const hasTrades = weekDays.some((d) => d.data);
+              const ws = weeklySummaries[wi];
+
+              return (
+                <div key={wi} className="border-b border-gray-800/50 last:border-b-0">
+                  {/* Week header */}
+                  <div className="flex items-center justify-between px-3 py-2 bg-gray-800/40">
+                    <span className="text-xs text-gray-500 font-medium">Week {wi + 1}</span>
+                    <div className="flex items-center gap-3">
+                      {ws.trades > 0 && (
+                        <span className="text-[11px] text-gray-500">
+                          {ws.trades} trade{ws.trades !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                      <span
+                        className={`text-xs font-bold ${
+                          ws.profit > 0 ? "text-emerald-400"
+                            : ws.profit < 0 ? "text-red-400"
+                              : "text-gray-500"
+                        }`}
+                      >
+                        {formatPL(ws.profit)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Day rows — show all days, highlight ones with trades */}
+                  {hasTrades ? (
+                    weekDays
+                      .filter((d) => d.data)
+                      .map((d) => {
+                        const dd = d.data!;
+                        const isProfit = dd.profit > 0;
+                        const isLoss = dd.profit < 0;
+                        const dayOfWeek = WEEKDAYS[new Date(d.dateKey).getDay()];
+
+                        let bgClass = "";
+                        if (isProfit) bgClass = "bg-emerald-900/20";
+                        else if (isLoss) bgClass = "bg-red-900/20";
+
+                        return (
+                          <div
+                            key={d.day}
+                            className={`flex items-center justify-between px-3 py-2.5 border-t border-gray-800/30 ${bgClass}`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs w-5 text-center ${d.isToday ? "text-blue-400 font-bold" : "text-gray-500"}`}>
+                                {d.day}
+                              </span>
+                              <span className="text-[11px] text-gray-500">{dayOfWeek}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[11px] text-gray-500">
+                                {dd.trades} trade{dd.trades !== 1 ? "s" : ""}
+                              </span>
+                              <span className={`text-xs font-bold min-w-[60px] text-right ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
+                                {formatPL(dd.profit)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                  ) : (
+                    <div className="px-3 py-2 border-t border-gray-800/30 text-xs text-gray-600">
+                      No trades
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </div>
   );

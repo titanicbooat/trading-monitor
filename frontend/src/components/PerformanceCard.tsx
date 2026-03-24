@@ -16,8 +16,8 @@ interface PerfData {
 function Row({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
     <div className="flex justify-between py-1.5 border-b border-gray-800/50 last:border-0">
-      <span className="text-gray-400 text-sm">{label}</span>
-      <span className={`text-sm font-medium ${color || "text-white"}`}>{value}</span>
+      <span className="text-gray-400 text-xs sm:text-sm">{label}</span>
+      <span className={`text-xs sm:text-sm font-medium ${color || "text-white"}`}>{value}</span>
     </div>
   );
 }

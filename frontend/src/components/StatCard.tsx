@@ -14,9 +14,9 @@ const colorMap = {
 
 export function StatCard({ label, value, sub, color = "default" }: StatCardProps) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 sm:p-4">
       <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{label}</p>
-      <p className={`text-2xl font-bold ${colorMap[color]}`}>{value}</p>
+      <p className={`text-lg sm:text-xl md:text-2xl font-bold ${colorMap[color]}`}>{value}</p>
       {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
     </div>
   );

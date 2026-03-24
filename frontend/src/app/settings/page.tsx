@@ -11,6 +11,7 @@ import {
   updateAccount,
   deleteAccount,
 } from "@/lib/api";
+import { PageHeader } from "@/components/PageHeader";
 
 interface Account {
   id: string;
@@ -165,37 +166,15 @@ export default function SettingsPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Account Settings</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Manage your MT4 / MT5 trading accounts
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push("/overview")}
-            className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-4 py-2 transition-colors"
-          >
-            Overview
-          </button>
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-4 py-2 transition-colors"
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => {
-              clearToken();
-              router.replace("/login");
-            }}
-            className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-4 py-2 transition-colors"
-          >
-            Logout
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Account Settings"
+        subtitle="Manage your MT4 / MT5 trading accounts"
+        currentPage="settings"
+        onLogout={() => {
+          clearToken();
+          router.replace("/login");
+        }}
+      />
 
       {/* Messages */}
       {error && (
@@ -252,7 +231,7 @@ export default function SettingsPage() {
             accounts.map((acc) => (
               <div
                 key={acc.id}
-                className="px-4 py-3 flex items-center justify-between hover:bg-gray-800/30"
+                className="px-3 sm:px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between hover:bg-gray-800/30"
               >
                 <div className="flex items-center gap-4">
                   <div
@@ -290,7 +269,7 @@ export default function SettingsPage() {
                       Login: {acc.login} &middot; Server: {acc.server || "—"}
                     </p>
                     {acc.terminal_path && (
-                      <p className="text-xs text-gray-600 font-mono truncate max-w-md">
+                      <p className="text-xs text-gray-600 font-mono truncate max-w-[200px] sm:max-w-md">
                         {acc.terminal_path}
                       </p>
                     )}

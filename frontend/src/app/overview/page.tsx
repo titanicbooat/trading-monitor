@@ -12,6 +12,7 @@ import { useWebSocket } from "@/lib/useWebSocket";
 import { StatCard } from "@/components/StatCard";
 import { PositionsTable, type Position } from "@/components/PositionsTable";
 import { PerformanceCard } from "@/components/PerformanceCard";
+import { PageHeader } from "@/components/PageHeader";
 
 interface CombinedStatus {
   balance: number;
@@ -108,54 +109,36 @@ export default function OverviewPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">All Accounts Overview</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+      <PageHeader
+        title="All Accounts Overview"
+        subtitle={
+          <>
             {connected ? (
               <span className="text-emerald-400">● Connected</span>
             ) : (
               <span className="text-red-400">● Disconnected</span>
             )}
             {lastUpdate && (
-              <span className="ml-3 text-gray-500">
+              <span className="text-gray-500">
                 Last update: {lastUpdate}
               </span>
             )}
             {combined && (
-              <span className="ml-3 text-gray-500">
+              <span className="text-gray-500">
                 {combined.accounts_count} account(s)
               </span>
             )}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-4 py-2 transition-colors"
-          >
-            Per Account
-          </button>
-          <button
-            onClick={() => router.push("/settings")}
-            className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-4 py-2 transition-colors"
-          >
-            Settings
-          </button>
-          <button
-            onClick={() => {
-              clearToken();
-              router.replace("/login");
-            }}
-            className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-4 py-2 transition-colors"
-          >
-            Logout
-          </button>
-        </div>
-      </div>
+          </>
+        }
+        currentPage="overview"
+        onLogout={() => {
+          clearToken();
+          router.replace("/login");
+        }}
+      />
 
       {/* Combined stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4">
         <StatCard
           label="Total Balance"
           value={combined ? `$${combined.balance.toLocaleString()}` : "—"}
@@ -308,7 +291,9 @@ import {
   flexRender,
   createColumnHelper,
   type SortingState,
+  type VisibilityState,
 } from "@tanstack/react-table";
+import { useIsMobile } from "@/lib/useMediaQuery";
 
 interface PositionRow extends Position {
   account_id: string;
@@ -370,19 +355,30 @@ const overviewColumns = [
 
 function AllPositionsTable({ data }: { data: PositionRow[] }) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const isMobile = useIsMobile();
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+
+  useEffect(() => {
+    setColumnVisibility(
+      isMobile
+        ? { price_open: false, price_current: false }
+        : {}
+    );
+  }, [isMobile]);
 
   const table = useReactTable({
     data,
     columns: overviewColumns,
-    state: { sorting },
+    state: { sorting, columnVisibility },
     onSortingChange: setSorting,
+    onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-800">
+      <div className="px-3 sm:px-4 py-3 border-b border-gray-800">
         <h3 className="text-sm font-medium text-gray-400">
           All Open Positions ({data.length})
         </h3>
@@ -396,7 +392,7 @@ function AllPositionsTable({ data }: { data: PositionRow[] }) {
                   <th
                     key={h.id}
                     onClick={h.column.getToggleSortingHandler()}
-                    className="px-4 py-2.5 text-left text-xs text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-300 select-none"
+                    className="px-2 py-2 md:px-4 md:py-2.5 text-left text-xs text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-300 select-none"
                   >
                     {flexRender(h.column.columnDef.header, h.getContext())}
                     {{ asc: " ↑", desc: " ↓" }[
@@ -411,7 +407,7 @@ function AllPositionsTable({ data }: { data: PositionRow[] }) {
             {table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={overviewColumns.length}
+                  colSpan={table.getVisibleLeafColumns().length}
                   className="px-4 py-8 text-center text-gray-500"
                 >
                   No open positions across all accounts
@@ -424,7 +420,7 @@ function AllPositionsTable({ data }: { data: PositionRow[] }) {
                   className="border-b border-gray-800/50 hover:bg-gray-800/30"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-2.5">
+                    <td key={cell.id} className="px-2 py-2 md:px-4 md:py-2.5">
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()
