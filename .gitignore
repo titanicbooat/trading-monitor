@@ -1,0 +1,19 @@
+# Backend
+backend/venv/
+backend/__pycache__/
+backend/.env
+backend/*.ex4
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+backend/ngrok.exe
+start.bat
