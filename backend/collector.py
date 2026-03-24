@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 DEAL_ENTRY_OUT = 1
 DEAL_TYPE_BUY = 0
 DEAL_TYPE_SELL = 1
+DEAL_TYPE_BALANCE = 6
 
 
 # ── Account config loading ──────────────────────────────────────────────────
@@ -218,6 +219,33 @@ def fetch_closed_trades_mt5() -> list[dict]:
     return result
 
 
+def fetch_balance_deals_mt5() -> list[dict]:
+    """Fetch deposit/withdrawal deals from MT5 (DEAL_TYPE_BALANCE)."""
+    import MetaTrader5 as mt5
+    now = datetime.now(timezone.utc)
+    deals = mt5.history_deals_get(now - timedelta(days=90), now)
+    if deals is None:
+        return []
+    result = []
+    for deal in deals:
+        d = deal._asdict()
+        if d.get("type") != DEAL_TYPE_BALANCE:
+            continue
+        profit = d.get("profit", 0)
+        if profit == 0:
+            continue
+        time_val = d.get("time")
+        time_str = datetime.fromtimestamp(time_val, tz=timezone.utc).isoformat() if time_val else ""
+        result.append({
+            "ticket": d.get("ticket", 0),
+            "deal_type": "deposit" if profit > 0 else "withdrawal",
+            "amount": round(abs(profit), 2),
+            "time": time_str,
+            "comment": d.get("comment", ""),
+        })
+    return result
+
+
 # ── Demo mode — per-account simulated data ───────────────────────────────────
 
 _demo_state: dict[str, dict] = {}
@@ -329,6 +357,33 @@ def fetch_closed_trades_demo(account_id: str, idx: int, acc_config: dict) -> lis
     return list(state["closed_trades"])
 
 
+def fetch_balance_deals_demo(account_id: str, idx: int, acc_config: dict) -> list[dict]:
+    """Generate demo deposit/withdrawal history."""
+    state = _get_demo_state(account_id, idx, acc_config)
+    if "balance_deals" not in state:
+        deals = []
+        # Initial deposit
+        deals.append({
+            "ticket": 80000 + idx * 100,
+            "deal_type": "deposit",
+            "amount": state["balance"],
+            "time": (datetime.now(timezone.utc) - timedelta(days=60)).isoformat(),
+            "comment": "Initial deposit",
+        })
+        # A few more deposits/withdrawals
+        for i in range(3 + idx):
+            is_deposit = random.random() > 0.3
+            deals.append({
+                "ticket": 80001 + idx * 100 + i,
+                "deal_type": "deposit" if is_deposit else "withdrawal",
+                "amount": round(random.uniform(100, 2000), 2),
+                "time": (datetime.now(timezone.utc) - timedelta(days=random.randint(1, 50))).isoformat(),
+                "comment": "Deposit" if is_deposit else "Withdrawal",
+            })
+        state["balance_deals"] = deals
+    return list(state["balance_deals"])
+
+
 # ── Main collector loop ──────────────────────────────────────────────────────
 
 # Shared mutable state for dynamic account management
@@ -395,6 +450,9 @@ async def collector_loop(accounts: list[dict], live_status: dict[str, bool]):
                             trades = fetch_closed_trades_mt5()
                             if trades:
                                 store.update_closed_trades(aid, trades)
+                            bal_deals = fetch_balance_deals_mt5()
+                            if bal_deals:
+                                store.update_balance_deals(aid, bal_deals)
 
                         _mt5_disconnect()
                         used_live = True
@@ -404,17 +462,13 @@ async def collector_loop(accounts: list[dict], live_status: dict[str, bool]):
                             collector_live_status[aid] = True
                             logger.info("Account '%s': MT5 connected successfully (now LIVE)", aid)
                     else:
-                        logger.warning("Account '%s': MT5 connect failed this tick, using demo fallback", aid)
+                        logger.warning("Account '%s': MT5 connect failed this tick — no data", aid)
                         collector_live_status[aid] = False
 
                 if not used_live:
-                    snapshot = fetch_account_snapshot_demo(aid, idx, acc)
-                    positions = fetch_positions_demo(aid, idx, acc)
-
-                    if tick_count % (HISTORY_INTERVAL // SNAPSHOT_INTERVAL) == 0:
-                        trades = fetch_closed_trades_demo(aid, idx, acc)
-                        if trades:
-                            store.update_closed_trades(aid, trades)
+                    # No demo fallback — skip this account, wait for real connection
+                    snapshot = None
+                    positions = []
 
                 if snapshot:
                     # Tag snapshot with connection mode

@@ -128,6 +128,30 @@ string BuildJSON()
    }
    json += "],";
 
+   // Balance deals (deposits/withdrawals) — type 6 in MT4 history
+   json += "\"balance_deals\":[";
+   bool firstBal = true;
+   for(int k = OrdersHistoryTotal() - 1; k >= 0; k--)
+   {
+      if(!OrderSelect(k, SELECT_BY_POS, MODE_HISTORY)) continue;
+      if(OrderType() != 6) continue;  // 6 = balance operation
+      double amount = OrderProfit();
+      if(amount == 0) continue;
+      if(OrderCloseTime() < fromDate) continue;
+
+      if(!firstBal) json += ",";
+      firstBal = false;
+
+      json += "{";
+      json += "\"ticket\":" + IntegerToString(OrderTicket()) + ",";
+      json += "\"deal_type\":\"" + (amount > 0 ? "deposit" : "withdrawal") + "\",";
+      json += "\"amount\":" + DoubleToString(MathAbs(amount), 2) + ",";
+      json += "\"time\":\"" + TimeToStr(OrderCloseTime(), TIME_DATE|TIME_SECONDS) + "\",";
+      json += "\"comment\":\"" + EscapeJSON(OrderComment()) + "\"";
+      json += "}";
+   }
+   json += "],";
+
    // Timestamp
    json += "\"timestamp\":\"" + TimeToStr(TimeCurrent(), TIME_DATE|TIME_SECONDS) + "\"";
 

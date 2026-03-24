@@ -29,6 +29,7 @@ class MemoryStore:
         self.latest_snapshot: dict[str, dict[str, Any]] = {}
         self.current_positions: dict[str, list[dict[str, Any]]] = defaultdict(list)
         self.closed_trades: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        self.balance_deals: dict[str, list[dict[str, Any]]] = defaultdict(list)
         self.snapshots_history: dict[str, list[dict[str, Any]]] = defaultdict(list)
         self._initialized = True
 
@@ -73,6 +74,20 @@ class MemoryStore:
         with self._data_lock:
             return list(self.closed_trades.get(account_id, []))
 
+    def update_balance_deals(self, account_id: str, deals: list[dict[str, Any]]):
+        with self._data_lock:
+            existing_tickets = {d["ticket"] for d in self.balance_deals[account_id]}
+            for deal in deals:
+                if deal["ticket"] not in existing_tickets:
+                    self.balance_deals[account_id].append(deal)
+                    existing_tickets.add(deal["ticket"])
+            self.balance_deals[account_id].sort(key=lambda d: d.get("time", ""), reverse=True)
+            self.balance_deals[account_id] = self.balance_deals[account_id][:500]
+
+    def get_balance_deals(self, account_id: str) -> list[dict[str, Any]]:
+        with self._data_lock:
+            return list(self.balance_deals.get(account_id, []))
+
     def get_history(self, account_id: str) -> list[dict[str, Any]]:
         with self._data_lock:
             return list(self.snapshots_history.get(account_id, []))
@@ -83,6 +98,7 @@ class MemoryStore:
             self.latest_snapshot.pop(account_id, None)
             self.current_positions.pop(account_id, None)
             self.closed_trades.pop(account_id, None)
+            self.balance_deals.pop(account_id, None)
             self.snapshots_history.pop(account_id, None)
             if account_id in self._account_ids:
                 self._account_ids.remove(account_id)

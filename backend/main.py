@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect, Query, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
@@ -23,8 +25,6 @@ from collector import (
     _demo_state,
 )
 from mt4_watcher import mt4_watcher_loop
-
-load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -386,6 +386,35 @@ async def get_calendar(
     }
 
 
+# ── Deposits / Withdrawals ────────────────────────────────────────────────────
+
+@app.get("/api/deposits")
+async def get_deposits(
+    user: str = Depends(get_current_user),
+    account: str = Query(None),
+):
+    """Return deposit/withdrawal history for an account."""
+    aid = account or _default_account_id()
+    deals = store.get_balance_deals(aid)
+
+    total_deposit = sum(d["amount"] for d in deals if d.get("deal_type") == "deposit")
+    total_withdrawal = sum(d["amount"] for d in deals if d.get("deal_type") == "withdrawal")
+
+    # Get currency from snapshot
+    snapshot = store.get_snapshot(aid)
+    currency = snapshot.get("currency", "USD") if snapshot else "USD"
+
+    return {
+        "deals": deals,
+        "currency": currency,
+        "summary": {
+            "total_deposit": round(total_deposit, 2),
+            "total_withdrawal": round(total_withdrawal, 2),
+            "net": round(total_deposit - total_withdrawal, 2),
+        },
+    }
+
+
 # ── Overview (all accounts combined) ──────────────────────────────────────────
 
 @app.get("/api/overview")
@@ -401,6 +430,8 @@ async def get_overview(user: str = Depends(get_current_user)):
     total_margin = 0.0
     total_margin_free = 0.0
     total_positions = 0
+    total_deposit = 0.0
+    total_withdrawal = 0.0
     all_positions = []
     all_trades = []
 
@@ -426,6 +457,13 @@ async def get_overview(user: str = Depends(get_current_user)):
         total_margin += mg
         total_margin_free += mf
         total_positions += pc
+
+        # Aggregate deposit/withdrawal totals (converted to USD)
+        bal_deals = store.get_balance_deals(aid)
+        acc_dep = sum(d["amount"] for d in bal_deals if d.get("deal_type") == "deposit") / usc_div
+        acc_wd = sum(d["amount"] for d in bal_deals if d.get("deal_type") == "withdrawal") / usc_div
+        total_deposit += acc_dep
+        total_withdrawal += acc_wd
 
         # Tag positions with account_id
         for p in positions:
@@ -490,6 +528,9 @@ async def get_overview(user: str = Depends(get_current_user)):
             "margin_free": round(total_margin_free, 2),
             "positions_count": total_positions,
             "accounts_count": len(account_ids),
+            "connected_count": sum(1 for a in account_summaries if a.get("is_live")),
+            "total_deposit": round(total_deposit, 2),
+            "total_withdrawal": round(total_withdrawal, 2),
         },
         "accounts": account_summaries,
         "positions": all_positions,

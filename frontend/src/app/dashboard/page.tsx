@@ -18,6 +18,7 @@ import { EquityChart } from "@/components/EquityChart";
 import { PositionsTable, type Position } from "@/components/PositionsTable";
 import { PerformanceCard } from "@/components/PerformanceCard";
 import { TradingCalendar } from "@/components/TradingCalendar";
+import { DepositHistory } from "@/components/DepositHistory";
 import { PageHeader } from "@/components/PageHeader";
 
 interface Account {
@@ -326,6 +327,11 @@ function DashboardContent() {
       {/* Trading Calendar */}
       {selectedAccount && (
         <TradingCalendar account={selectedAccount} currency={status?.currency as string} />
+      )}
+
+      {/* Deposit & Withdrawal History */}
+      {selectedAccount && (
+        <DepositHistory account={selectedAccount} currency={status?.currency as string} />
       )}
     </div>
   );

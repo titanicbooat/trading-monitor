@@ -101,6 +101,7 @@ async def mt4_watcher_loop(accounts: list[dict], interval: int = 10):
                 info = data.get("account_info", {})
                 positions = data.get("positions", [])
                 closed_trades = data.get("closed_trades", [])
+                balance_deals = data.get("balance_deals", [])
 
                 balance = info.get("balance", 0)
                 equity = info.get("equity", 0)
@@ -120,6 +121,8 @@ async def mt4_watcher_loop(accounts: list[dict], interval: int = 10):
                 store.update_positions(aid, positions)
                 if closed_trades:
                     store.update_closed_trades(aid, closed_trades)
+                if balance_deals:
+                    store.update_balance_deals(aid, balance_deals)
 
                 # Update live status
                 from collector import collector_live_status

@@ -73,6 +73,8 @@ export const fetchCalendar = (account?: string, year?: number, month?: number) =
   return authFetch("/api/calendar", Object.keys(params).length ? params : undefined);
 };
 
+export const fetchDeposits = (account?: string) => authFetch("/api/deposits", account ? { account } : undefined);
+
 export function createWsUrl(): string {
   const token = getToken();
   const base = API_BASE.replace(/^http/, "ws");

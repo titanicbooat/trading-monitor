@@ -23,6 +23,9 @@ interface CombinedStatus {
   margin_free: number;
   positions_count: number;
   accounts_count: number;
+  connected_count?: number;
+  total_deposit?: number;
+  total_withdrawal?: number;
 }
 
 interface AccountSummary {
@@ -125,7 +128,7 @@ export default function OverviewPage() {
             )}
             {combined && (
               <span className="text-gray-500">
-                {combined.accounts_count} account(s)
+                {combined.connected_count ?? 0}/{combined.accounts_count} account(s) live
               </span>
             )}
           </>
@@ -162,14 +165,14 @@ export default function OverviewPage() {
           color={ddColor}
         />
         <StatCard
-          label="Free Margin"
-          value={
-            combined ? `$${combined.margin_free.toLocaleString()}` : "—"
-          }
+          label="Total Deposit"
+          value={combined ? `+$${(combined.total_deposit ?? 0).toLocaleString()}` : "—"}
+          color="green"
         />
         <StatCard
-          label="Open Positions"
-          value={combined?.positions_count ?? "—"}
+          label="Total Withdrawal"
+          value={combined ? `-$${(combined.total_withdrawal ?? 0).toLocaleString()}` : "—"}
+          color="red"
         />
       </div>
 
