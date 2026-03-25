@@ -74,6 +74,7 @@ export const fetchCalendar = (account?: string, year?: number, month?: number) =
 };
 
 export const fetchDeposits = (account?: string) => authFetch("/api/deposits", account ? { account } : undefined);
+export const fetchTrades = (account?: string) => authFetch("/api/trades", account ? { account } : undefined);
 
 export function createWsUrl(): string {
   const token = getToken();

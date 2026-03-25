@@ -22,7 +22,16 @@ export interface SnapshotPoint {
   profit: number;
 }
 
-type Tab = "growth" | "balance" | "equity" | "dd" | "profit";
+export interface TradePoint {
+  ticket: number;
+  symbol: string;
+  type: number;
+  volume: number;
+  profit: number;
+  time: string;
+}
+
+type Tab = "growth" | "balance" | "equity" | "dd" | "profit" | "pl";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "growth", label: "Growth" },
@@ -30,9 +39,10 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "equity", label: "Equity" },
   { key: "dd", label: "DD" },
   { key: "profit", label: "Profit" },
+  { key: "pl", label: "P/L" },
 ];
 
-export function EquityChart({ data, currency }: { data: SnapshotPoint[]; currency?: string }) {
+export function EquityChart({ data, currency, trades }: { data: SnapshotPoint[]; currency?: string; trades?: TradePoint[] }) {
   const [tab, setTab] = useState<Tab>("growth");
   const sym = currency === "USC" ? "¢" : "$";
 
@@ -191,8 +201,7 @@ export function EquityChart({ data, currency }: { data: SnapshotPoint[]; currenc
               name="Drawdown"
             />
           </AreaChart>
-        ) : (
-          /* profit */
+        ) : tab === "profit" ? (
           <AreaChart data={formatted}>
             <defs>
               <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
@@ -225,6 +234,9 @@ export function EquityChart({ data, currency }: { data: SnapshotPoint[]; currenc
               name="Net Profit"
             />
           </AreaChart>
+        ) : (
+          /* P/L from closed trades */
+          <CumulativePLChart trades={trades || []} currency={sym} />
         )}
       </ResponsiveContainer>
       </div>
@@ -238,3 +250,75 @@ const tooltipStyle = {
   borderRadius: "8px",
   fontSize: 12,
 };
+
+function CumulativePLChart({ trades, currency }: { trades: TradePoint[]; currency: string }) {
+  if (!trades.length) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+        No closed trades yet
+      </div>
+    );
+  }
+
+  // trades are already sorted ASC from backend
+  let cumulative = 0;
+  const plData = trades.map((t) => {
+    cumulative += t.profit;
+    const d = new Date(t.time);
+    return {
+      date: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      symbol: t.symbol,
+      profit: Math.round(t.profit * 100) / 100,
+      cumulative: Math.round(cumulative * 100) / 100,
+    };
+  });
+
+  const lastCum = plData[plData.length - 1]?.cumulative ?? 0;
+  const color = lastCum >= 0 ? "#10b981" : "#ef4444";
+
+  return (
+    <AreaChart data={plData}>
+      <defs>
+        <linearGradient id="plGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+          <stop offset="95%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+      <XAxis dataKey="date" stroke="#6b7280" fontSize={11} />
+      <YAxis
+        stroke="#6b7280"
+        fontSize={11}
+        tickFormatter={(v) => `${currency}${v}`}
+        domain={["auto", "auto"]}
+      />
+      <Tooltip
+        contentStyle={tooltipStyle}
+        content={({ active, payload }) => {
+          if (!active || !payload?.length) return null;
+          const d = payload[0].payload;
+          return (
+            <div style={tooltipStyle} className="px-3 py-2">
+              <p className="text-gray-400 text-xs">{d.symbol} | {d.date}</p>
+              <p className={`text-sm font-medium ${d.profit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                Trade: {d.profit >= 0 ? "+" : ""}{currency}{d.profit.toFixed(2)}
+              </p>
+              <p className={`text-sm font-medium ${d.cumulative >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                Cumulative: {d.cumulative >= 0 ? "+" : ""}{currency}{d.cumulative.toFixed(2)}
+              </p>
+            </div>
+          );
+        }}
+      />
+      <Area
+        type="monotone"
+        dataKey="cumulative"
+        stroke={color}
+        strokeWidth={2}
+        fill="url(#plGrad)"
+        dot={false}
+        name="Cumulative P/L"
+      />
+    </AreaChart>
+  );
+}

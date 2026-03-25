@@ -11,10 +11,11 @@ import {
   fetchPositions,
   fetchPerformance,
   fetchHistory,
+  fetchTrades,
 } from "@/lib/api";
 import { useWebSocket } from "@/lib/useWebSocket";
 import { StatCard } from "@/components/StatCard";
-import { EquityChart } from "@/components/EquityChart";
+import { EquityChart, type TradePoint } from "@/components/EquityChart";
 import { PositionsTable, type Position } from "@/components/PositionsTable";
 import { PerformanceCard } from "@/components/PerformanceCard";
 import { TradingCalendar } from "@/components/TradingCalendar";
@@ -84,6 +85,7 @@ function DashboardContent() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [performance, setPerformance] = useState<PerfData | null>(null);
   const [history, setHistory] = useState<SnapshotPoint[]>([]);
+  const [trades, setTrades] = useState<TradePoint[]>([]);
   const [lastUpdate, setLastUpdate] = useState<string>("");
 
   // Auth guard
@@ -118,18 +120,21 @@ function DashboardContent() {
     setPositions([]);
     setHistory([]);
     setPerformance(null);
+    setTrades([]);
 
     async function loadData() {
       try {
-        const [s, p, perf, h] = await Promise.all([
+        const [s, p, perf, h, tr] = await Promise.all([
           fetchStatus(selectedAccount),
           fetchPositions(selectedAccount),
           fetchPerformance(selectedAccount),
           fetchHistory(selectedAccount),
+          fetchTrades(selectedAccount),
         ]);
         if (s && !s.detail) setStatus(s);
         setPositions(p || []);
         setPerformance(perf);
+        setTrades(tr?.trades || []);
         setHistory(
           (h || []).map((snap: Record<string, unknown>) => ({
             timestamp: snap.timestamp as string,
@@ -314,7 +319,7 @@ function DashboardContent() {
       {/* Chart + Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
-          <EquityChart data={history} currency={status?.currency as string} />
+          <EquityChart data={history} currency={status?.currency as string} trades={trades} />
         </div>
         <div>
           <PerformanceCard data={performance} currency={status?.currency as string} />

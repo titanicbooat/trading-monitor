@@ -325,6 +325,40 @@ async def get_history(
     return store.get_history(account or _default_account_id())
 
 
+# ── Closed Trades List ────────────────────────────────────────────────────────
+
+@app.get("/api/trades")
+async def get_trades(
+    user: str = Depends(get_current_user),
+    account: str = Query(None),
+):
+    """Return closed trades list sorted by time ASC for cumulative P/L chart."""
+    aid = account or _default_account_id()
+    trades = store.get_closed_trades(aid)
+
+    # get_closed_trades returns DESC, reverse to ASC for cumulative calculation
+    trades.reverse()
+
+    # Get currency from snapshot
+    snapshot = store.get_snapshot(aid)
+    currency = snapshot.get("currency", "USD") if snapshot else "USD"
+
+    return {
+        "trades": [
+            {
+                "ticket": t.get("ticket", 0),
+                "symbol": t.get("symbol", ""),
+                "type": t.get("type", 0),
+                "volume": t.get("volume", 0),
+                "profit": t.get("profit", 0),
+                "time": t.get("time", ""),
+            }
+            for t in trades
+        ],
+        "currency": currency,
+    }
+
+
 # ── Calendar (daily P/L) ─────────────────────────────────────────────────────
 
 @app.get("/api/calendar")
