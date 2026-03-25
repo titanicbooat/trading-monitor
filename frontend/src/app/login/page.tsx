@@ -31,7 +31,7 @@ export default function LoginPage() {
         onSubmit={handleSubmit}
         className="bg-gray-900 border border-gray-800 rounded-xl p-8 w-full max-w-sm space-y-5 shadow-2xl"
       >
-        <h1 className="text-2xl font-bold text-center">MT5 Monitor</h1>
+        <h1 className="text-2xl font-bold text-center">Trading Monitor</h1>
         <p className="text-gray-400 text-center text-sm">
           Sign in to your dashboard
         </p>

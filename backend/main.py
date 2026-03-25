@@ -59,6 +59,10 @@ def _default_account_id() -> str:
     return _accounts[0]["id"] if _accounts else "main"
 
 
+def _find_account_config(account_id: str) -> Optional[dict]:
+    return next((a for a in _accounts if a["id"] == account_id), None)
+
+
 # ── Startup ──────────────────────────────────────────────────────────────────
 
 @app.on_event("startup")
@@ -335,6 +339,20 @@ async def get_trades(
     """Return closed trades list sorted by time ASC for cumulative P/L chart."""
     aid = account or _default_account_id()
     trades = store.get_closed_trades(aid)
+
+    # If DB is empty, try fetching directly from MT5
+    if not trades:
+        acc_cfg = _find_account_config(aid)
+        if acc_cfg and acc_cfg.get("platform", "mt5") == "mt5":
+            try:
+                from collector import fetch_closed_trades_mt5, _mt5_connect, _mt5_disconnect
+                if _mt5_connect(acc_cfg):
+                    trades = fetch_closed_trades_mt5()
+                    _mt5_disconnect()
+                    if trades:
+                        store.update_closed_trades(aid, trades)
+            except Exception:
+                logging.getLogger(__name__).warning("Direct MT5 trade fetch failed for %s", aid)
 
     # get_closed_trades returns DESC, reverse to ASC for cumulative calculation
     trades.reverse()

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MT5 Account Monitor",
+  title: "Trading Monitor",
   description: "Real-time MT5 trading account dashboard",
 };
 
