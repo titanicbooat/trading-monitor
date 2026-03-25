@@ -157,6 +157,41 @@ class MemoryStore:
             ).fetchall()
             return [json.loads(row[0]) for row in rows]
 
+    def get_trade_count(self, account_id: str) -> int:
+        with self._data_lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) FROM closed_trades WHERE account_id = ?",
+                (account_id,),
+            ).fetchone()
+            return row[0] if row else 0
+
+    def get_trade_stats(self, account_id: str) -> dict[str, float]:
+        """Aggregate trade stats in SQL instead of fetching all rows."""
+        with self._data_lock:
+            row = self._conn.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN profit > 0 THEN 1 ELSE 0 END) as wins,
+                    SUM(CASE WHEN profit < 0 THEN 1 ELSE 0 END) as losses,
+                    SUM(CASE WHEN profit > 0 THEN profit ELSE 0 END) as total_profit,
+                    SUM(CASE WHEN profit < 0 THEN profit ELSE 0 END) as total_loss,
+                    MAX(profit) as largest_win,
+                    MIN(profit) as largest_loss
+                FROM closed_trades WHERE account_id = ?
+            """, (account_id,)).fetchone()
+            if not row or row[0] == 0:
+                return {"total": 0, "wins": 0, "losses": 0, "total_profit": 0,
+                        "total_loss": 0, "largest_win": 0, "largest_loss": 0}
+            return {
+                "total": row[0],
+                "wins": row[1] or 0,
+                "losses": row[2] or 0,
+                "total_profit": row[3] or 0,
+                "total_loss": row[4] or 0,
+                "largest_win": row[5] or 0,
+                "largest_loss": row[6] or 0,
+            }
+
     # ── Balance Deals (SQLite) ────────────────────────────────────────────
 
     def update_balance_deals(self, account_id: str, deals: list[dict[str, Any]]):
@@ -177,6 +212,19 @@ class MemoryStore:
             ).fetchall()
             return [json.loads(row[0]) for row in rows]
 
+    def get_deposit_totals(self, account_id: str) -> dict[str, float]:
+        """Aggregate deposit/withdrawal totals in SQL."""
+        with self._data_lock:
+            rows = self._conn.execute(
+                "SELECT deal_type, SUM(amount) FROM balance_deals WHERE account_id = ? GROUP BY deal_type",
+                (account_id,),
+            ).fetchall()
+            result = {"deposit": 0.0, "withdrawal": 0.0}
+            for row in rows:
+                if row[0] in result:
+                    result[row[0]] = row[1] or 0.0
+            return result
+
     # ── Snapshots History (SQLite) ────────────────────────────────────────
 
     def get_history(self, account_id: str) -> list[dict[str, Any]]:
@@ -186,6 +234,17 @@ class MemoryStore:
                 (account_id, SNAPSHOTS_MAX),
             ).fetchall()
             return [json.loads(row[0]) for row in rows]
+
+    def get_history_latest(self, account_id: str, limit: int = 10) -> list[dict[str, Any]]:
+        """Get the most recent N snapshots efficiently (DESC query + reverse)."""
+        with self._data_lock:
+            rows = self._conn.execute(
+                "SELECT data FROM snapshots_history WHERE account_id = ? ORDER BY timestamp DESC LIMIT ?",
+                (account_id, limit),
+            ).fetchall()
+            result = [json.loads(row[0]) for row in rows]
+            result.reverse()
+            return result
 
     # ── Account removal ───────────────────────────────────────────────────
 

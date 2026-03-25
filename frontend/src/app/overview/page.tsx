@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   getToken,
@@ -90,9 +90,13 @@ export default function OverviewPage() {
     }
   }
 
-  // Auto-refresh on WS updates (any account triggers a re-fetch)
+  // Auto-refresh on WS updates — debounce to avoid flooding
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleMessage = useCallback(() => {
-    loadOverview();
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      loadOverview();
+    }, 5000);
   }, []);
 
   const token = getToken();
@@ -154,7 +158,7 @@ export default function OverviewPage() {
           label="Floating P/L"
           value={
             combined
-              ? `${combined.floating_pl >= 0 ? "+" : ""}$${Math.abs(combined.floating_pl).toFixed(2)}`
+              ? `${combined.floating_pl >= 0 ? "+" : "-"}$${Math.abs(combined.floating_pl).toFixed(2)}`
               : "—"
           }
           color={floatingColor}
@@ -225,7 +229,7 @@ export default function OverviewPage() {
                       fl >= 0 ? "text-emerald-400" : "text-red-400"
                     }`}
                   >
-                    {fl >= 0 ? "+" : ""}{sym}{Math.abs(fl).toFixed(2)}
+                    {fl >= 0 ? "+" : "-"}{sym}{Math.abs(fl).toFixed(2)}
                   </span>
                 </div>
 

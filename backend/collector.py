@@ -477,7 +477,7 @@ async def collector_loop(accounts: list[dict], live_status: dict[str, bool]):
                 store.update_positions(aid, positions)
 
                 # Broadcast per-account update
-                last_10 = store.get_history(aid)[-10:]
+                last_10 = store.get_history_latest(aid, 10)
                 payload = {
                     "type": "update",
                     "account_id": aid,

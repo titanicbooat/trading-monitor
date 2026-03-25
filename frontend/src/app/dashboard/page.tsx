@@ -291,7 +291,7 @@ function DashboardContent() {
                 label="Floating P/L"
                 value={
                   status
-                    ? `${status.floating_pl >= 0 ? "+" : ""}${sym}${Math.abs(status.floating_pl).toFixed(2)}`
+                    ? `${status.floating_pl >= 0 ? "+" : "-"}${sym}${Math.abs(status.floating_pl).toFixed(2)}`
                     : "—"
                 }
                 color={floatingColor}

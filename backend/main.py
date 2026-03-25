@@ -485,12 +485,19 @@ async def get_overview(user: str = Depends(get_current_user)):
     total_deposit = 0.0
     total_withdrawal = 0.0
     all_positions = []
-    all_trades = []
+
+    # Aggregated trade stats for combined performance
+    combined_total = 0
+    combined_wins = 0
+    combined_losses = 0
+    combined_tp = 0.0
+    combined_tl = 0.0
+    combined_largest_win = 0.0
+    combined_largest_loss = 0.0
 
     for aid in account_ids:
         snap = store.get_snapshot(aid)
         positions = store.get_positions(aid)
-        trades = store.get_closed_trades(aid)
 
         currency = snap.get("currency", "USD")
         # Convert USC (US cents) to USD for combined totals
@@ -510,23 +517,29 @@ async def get_overview(user: str = Depends(get_current_user)):
         total_margin_free += mf
         total_positions += pc
 
-        # Aggregate deposit/withdrawal totals (converted to USD)
-        bal_deals = store.get_balance_deals(aid)
-        acc_dep = sum(d["amount"] for d in bal_deals if d.get("deal_type") == "deposit") / usc_div
-        acc_wd = sum(d["amount"] for d in bal_deals if d.get("deal_type") == "withdrawal") / usc_div
-        total_deposit += acc_dep
-        total_withdrawal += acc_wd
+        # Aggregate deposit/withdrawal totals via SQL (not fetching all rows)
+        dep_totals = store.get_deposit_totals(aid)
+        total_deposit += dep_totals["deposit"] / usc_div
+        total_withdrawal += dep_totals["withdrawal"] / usc_div
 
         # Tag positions with account_id
         for p in positions:
             all_positions.append({**p, "account_id": aid})
 
-        # Convert trade profits from USC to USD for combined performance
-        for t in trades:
-            converted = dict(t)
-            if usc_div != 1.0:
-                converted["profit"] = t.get("profit", 0) / usc_div
-            all_trades.append(converted)
+        # Use SQL-aggregated trade stats instead of fetching all trades
+        stats = store.get_trade_stats(aid)
+        trade_count = stats["total"]
+        combined_total += trade_count
+        combined_wins += stats["wins"]
+        combined_losses += stats["losses"]
+        combined_tp += stats["total_profit"] / usc_div
+        combined_tl += abs(stats["total_loss"]) / usc_div
+        lw = stats["largest_win"] / usc_div
+        ll = stats["largest_loss"] / usc_div
+        if lw > combined_largest_win:
+            combined_largest_win = lw
+        if ll < combined_largest_loss:
+            combined_largest_loss = ll
 
         dd = snap.get("drawdown_pct", 0)
         acc_cfg = next((a for a in _accounts if a["id"] == aid), {})
@@ -538,7 +551,7 @@ async def get_overview(user: str = Depends(get_current_user)):
             "floating_pl": round(snap.get("floating_pl", 0), 2),
             "drawdown_pct": round(dd, 2),
             "positions_count": pc,
-            "total_trades": len(trades),
+            "total_trades": trade_count,
             "is_live": collector_live_status.get(aid, False),
             "mode": snap.get("_mode", "demo"),
             "platform": acc_cfg.get("platform", "mt5"),
@@ -548,26 +561,20 @@ async def get_overview(user: str = Depends(get_current_user)):
     combined_dd = ((total_balance - total_equity) / total_balance * 100) if total_balance > 0 else 0
     combined_dd = max(0, combined_dd)
 
-    # Combined performance
-    profits = [t.get("profit", 0) for t in all_trades]
-    wins = [p for p in profits if p > 0]
-    losses = [p for p in profits if p < 0]
-    tp = sum(wins)
-    tl = abs(sum(losses))
-
+    # Combined performance (from SQL-aggregated stats)
     combined_perf = {
-        "total_trades": len(all_trades),
-        "winning_trades": len(wins),
-        "losing_trades": len(losses),
-        "win_rate": round(len(wins) / len(all_trades) * 100, 2) if all_trades else 0,
-        "profit_factor": round(tp / tl, 2) if tl > 0 else float("inf"),
-        "total_profit": round(tp, 2),
-        "total_loss": round(tl, 2),
-        "net_profit": round(tp - tl, 2),
-        "average_profit": round(tp / len(wins), 2) if wins else 0,
-        "average_loss": round(tl / len(losses), 2) if losses else 0,
-        "largest_win": round(max(wins), 2) if wins else 0,
-        "largest_loss": round(min(profits), 2) if losses else 0,
+        "total_trades": combined_total,
+        "winning_trades": combined_wins,
+        "losing_trades": combined_losses,
+        "win_rate": round(combined_wins / combined_total * 100, 2) if combined_total else 0,
+        "profit_factor": round(combined_tp / combined_tl, 2) if combined_tl > 0 else float("inf"),
+        "total_profit": round(combined_tp, 2),
+        "total_loss": round(combined_tl, 2),
+        "net_profit": round(combined_tp - combined_tl, 2),
+        "average_profit": round(combined_tp / combined_wins, 2) if combined_wins else 0,
+        "average_loss": round(combined_tl / combined_losses, 2) if combined_losses else 0,
+        "largest_win": round(combined_largest_win, 2),
+        "largest_loss": round(combined_largest_loss, 2),
     }
 
     return {

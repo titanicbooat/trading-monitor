@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -54,19 +54,20 @@ export function EquityChart({ data, currency, trades }: { data: SnapshotPoint[];
     );
   }
 
-  const initialBalance = data[0]?.balance || 1;
-
-  const formatted = data.map((d) => {
-    const growthPct = ((d.equity - initialBalance) / initialBalance) * 100;
-    const netProfit = d.equity - initialBalance;
-    return {
-      ...d,
-      time: new Date(d.timestamp).toLocaleTimeString(),
-      growth: Math.round(growthPct * 100) / 100,
-      net_profit: Math.round(netProfit * 100) / 100,
-      dd: d.drawdown_pct ?? 0,
-    };
-  });
+  const formatted = useMemo(() => {
+    const initialBalance = data[0]?.balance || 1;
+    return data.map((d) => {
+      const growthPct = ((d.equity - initialBalance) / initialBalance) * 100;
+      const netProfit = d.equity - initialBalance;
+      return {
+        ...d,
+        time: new Date(d.timestamp).toLocaleTimeString(),
+        growth: Math.round(growthPct * 100) / 100,
+        net_profit: Math.round(netProfit * 100) / 100,
+        dd: d.drawdown_pct ?? 0,
+      };
+    });
+  }, [data]);
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
