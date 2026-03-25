@@ -144,44 +144,46 @@ export default function OverviewPage() {
         }}
       />
 
-      {/* Combined stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4">
-        <StatCard
-          label="Total Balance"
-          value={combined ? `$${combined.balance.toLocaleString()}` : "—"}
-        />
-        <StatCard
-          label="Total Equity"
-          value={combined ? `$${combined.equity.toLocaleString()}` : "—"}
-        />
-        <StatCard
-          label="Floating P/L"
-          value={
-            combined
-              ? `${combined.floating_pl >= 0 ? "+" : "-"}$${Math.abs(combined.floating_pl).toFixed(2)}`
-              : "—"
-          }
-          color={floatingColor}
-        />
-        <StatCard
-          label="Drawdown"
-          value={combined ? `${combined.drawdown_pct.toFixed(2)}%` : "—"}
-          color={ddColor}
-        />
-        <StatCard
-          label="Total Deposit"
-          value={combined ? `+$${(combined.total_deposit ?? 0).toLocaleString()}` : "—"}
-          color="green"
-        />
-        <StatCard
-          label="Total Withdrawal"
-          value={combined ? `-$${(combined.total_withdrawal ?? 0).toLocaleString()}` : "—"}
-          color="red"
-        />
+      {/* Stat cards + Performance side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 content-start">
+          <StatCard
+            label="Total Balance"
+            value={combined ? `$${combined.balance.toLocaleString()}` : "—"}
+          />
+          <StatCard
+            label="Total Equity"
+            value={combined ? `$${combined.equity.toLocaleString()}` : "—"}
+          />
+          <StatCard
+            label="Floating P/L"
+            value={
+              combined
+                ? `${combined.floating_pl >= 0 ? "+" : "-"}$${Math.abs(combined.floating_pl).toFixed(2)}`
+                : "—"
+            }
+            color={floatingColor}
+          />
+          <StatCard
+            label="Drawdown"
+            value={combined ? `${combined.drawdown_pct.toFixed(2)}%` : "—"}
+            color={ddColor}
+          />
+          <StatCard
+            label="Total Deposit"
+            value={combined ? `+$${(combined.total_deposit ?? 0).toLocaleString()}` : "—"}
+            color="green"
+          />
+          <StatCard
+            label="Total Withdrawal"
+            value={combined ? `-$${(combined.total_withdrawal ?? 0).toLocaleString()}` : "—"}
+            color="red"
+          />
+        </div>
+        <div>
+          <PerformanceCard data={performance} currency="USD" />
+        </div>
       </div>
-
-      {/* Performance */}
-      <PerformanceCard data={performance} currency="USD" />
 
       {/* Per-account cards */}
       <div>
