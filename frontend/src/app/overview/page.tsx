@@ -145,8 +145,8 @@ export default function OverviewPage() {
       />
 
       {/* Stat cards + Performance side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 content-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 items-stretch">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 auto-rows-fr">
           <StatCard
             label="Total Balance"
             value={combined ? `$${combined.balance.toLocaleString()}` : "—"}
@@ -180,8 +180,10 @@ export default function OverviewPage() {
             color="red"
           />
         </div>
-        <div>
-          <PerformanceCard data={performance} currency="USD" />
+        <div className="flex">
+          <div className="w-full">
+            <PerformanceCard data={performance} currency="USD" />
+          </div>
         </div>
       </div>
 

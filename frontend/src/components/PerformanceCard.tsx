@@ -36,9 +36,9 @@ export function PerformanceCard({ data, currency }: { data: PerfData | null; cur
   const pf = data.profit_factor === Infinity ? "∞" : data.profit_factor.toFixed(2);
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 h-full flex flex-col">
       <h3 className="text-sm font-medium text-gray-400 mb-3">Performance (30d)</h3>
-      <div className="space-y-0">
+      <div className="space-y-0 flex-1 flex flex-col justify-between">
         <Row label="Total Trades" value={String(data.total_trades)} />
         <Row label="Win / Loss" value={`${data.winning_trades} / ${data.losing_trades}`} />
         <Row
