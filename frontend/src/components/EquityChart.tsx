@@ -46,15 +46,8 @@ export function EquityChart({ data, currency, trades }: { data: SnapshotPoint[];
   const [tab, setTab] = useState<Tab>("growth");
   const sym = currency === "USC" ? "¢" : "$";
 
-  if (!data.length) {
-    return (
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 flex items-center justify-center h-[280px] sm:h-[370px]">
-        <p className="text-gray-500">No chart data yet</p>
-      </div>
-    );
-  }
-
   const formatted = useMemo(() => {
+    if (!data.length) return [];
     const initialBalance = data[0]?.balance || 1;
     return data.map((d) => {
       const growthPct = ((d.equity - initialBalance) / initialBalance) * 100;
@@ -68,6 +61,14 @@ export function EquityChart({ data, currency, trades }: { data: SnapshotPoint[];
       };
     });
   }, [data]);
+
+  if (!data.length) {
+    return (
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 flex items-center justify-center h-[280px] sm:h-[370px]">
+        <p className="text-gray-500">No chart data yet</p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
