@@ -9,7 +9,7 @@ export default function Home() {
   useEffect(() => {
     const token = localStorage.getItem("mt5_token");
     if (token) {
-      router.replace("/dashboard");
+      router.replace("/overview");
     } else {
       router.replace("/login");
     }
