@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  isAnyAuthenticated,
   getToken,
   clearToken,
   createWsUrl,
@@ -12,6 +13,8 @@ import {
   fetchPerformance,
   fetchHistory,
   fetchTrades,
+  getVpsList,
+  getAuthenticatedVpsList,
 } from "@/lib/api";
 import { useWebSocket } from "@/lib/useWebSocket";
 import { StatCard } from "@/components/StatCard";
@@ -79,6 +82,12 @@ function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const accountFromUrl = searchParams.get("account");
+  const vpsFromUrl = searchParams.get("vps");
+
+  const vpsList = getAuthenticatedVpsList();
+  const [selectedVps, setSelectedVps] = useState<string>(
+    vpsFromUrl || vpsList[0]?.id || "default"
+  );
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<string>(accountFromUrl || "");
   const [status, setStatus] = useState<AccountStatus | null>(null);
@@ -88,32 +97,36 @@ function DashboardContent() {
   const [trades, setTrades] = useState<TradePoint[]>([]);
   const [lastUpdate, setLastUpdate] = useState<string>("");
 
+  const showVpsSelector = getVpsList().length > 1;
+
   // Auth guard
   useEffect(() => {
-    if (!getToken()) {
+    if (!isAnyAuthenticated()) {
       router.replace("/login");
     }
   }, [router]);
 
-  // Load accounts list
+  // Load accounts list when VPS changes
   useEffect(() => {
     async function loadAccounts() {
       try {
-        const accs = await fetchAccounts();
+        const accs = await fetchAccounts(selectedVps);
         setAccounts(accs);
         if (accs.length > 0 && !selectedAccount) {
+          setSelectedAccount(accs[0].id);
+        } else if (accs.length > 0 && !accs.find((a: Account) => a.id === selectedAccount)) {
           setSelectedAccount(accs[0].id);
         }
       } catch (err) {
         console.error("Failed to load accounts:", err);
       }
     }
-    if (getToken()) loadAccounts();
-  }, []);
+    if (getToken(selectedVps)) loadAccounts();
+  }, [selectedVps]);
 
   // Fetch data when selected account changes
   useEffect(() => {
-    if (!selectedAccount || !getToken()) return;
+    if (!selectedAccount || !getToken(selectedVps)) return;
 
     // Clear old data immediately
     setStatus(null);
@@ -125,11 +138,11 @@ function DashboardContent() {
     async function loadData() {
       try {
         const [s, p, perf, h, tr] = await Promise.all([
-          fetchStatus(selectedAccount),
-          fetchPositions(selectedAccount),
-          fetchPerformance(selectedAccount),
-          fetchHistory(selectedAccount),
-          fetchTrades(selectedAccount),
+          fetchStatus(selectedVps, selectedAccount),
+          fetchPositions(selectedVps, selectedAccount),
+          fetchPerformance(selectedVps, selectedAccount),
+          fetchHistory(selectedVps, selectedAccount),
+          fetchTrades(selectedVps, selectedAccount),
         ]);
         if (s && !s.detail) setStatus(s);
         setPositions(p || []);
@@ -150,21 +163,21 @@ function DashboardContent() {
       }
     }
     loadData();
-  }, [selectedAccount]);
+  }, [selectedAccount, selectedVps]);
 
   // Refetch performance every 60s
   useEffect(() => {
     if (!selectedAccount) return;
     const interval = setInterval(async () => {
       try {
-        const perf = await fetchPerformance(selectedAccount);
+        const perf = await fetchPerformance(selectedVps, selectedAccount);
         setPerformance(perf);
       } catch {
         // ignore
       }
     }, 60_000);
     return () => clearInterval(interval);
-  }, [selectedAccount]);
+  }, [selectedAccount, selectedVps]);
 
   // WebSocket handler — filter by selected account
   const handleMessage = useCallback(
@@ -197,9 +210,9 @@ function DashboardContent() {
     [selectedAccount]
   );
 
-  const token = getToken();
+  const token = getToken(selectedVps);
   const { connected } = useWebSocket({
-    url: token ? createWsUrl() : "",
+    url: token ? createWsUrl(selectedVps) : "",
     onMessage: handleMessage,
   });
 
@@ -256,19 +269,37 @@ function DashboardContent() {
         currentPage="dashboard"
         onLogout={handleLogout}
         rightSlot={
-          accounts.length > 1 ? (
-            <select
-              value={selectedAccount}
-              onChange={(e) => setSelectedAccount(e.target.value)}
-              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer min-h-[44px]"
-            >
-              {accounts.map((acc) => (
-                <option key={acc.id} value={acc.id}>
-                  {acc.label} {acc.is_live ? "" : " [DEMO]"}
-                </option>
-              ))}
-            </select>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            {showVpsSelector && (
+              <select
+                value={selectedVps}
+                onChange={(e) => {
+                  setSelectedVps(e.target.value);
+                  setSelectedAccount("");
+                }}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer min-h-[44px]"
+              >
+                {vpsList.map((vps) => (
+                  <option key={vps.id} value={vps.id}>
+                    {vps.label}
+                  </option>
+                ))}
+              </select>
+            )}
+            {accounts.length > 1 && (
+              <select
+                value={selectedAccount}
+                onChange={(e) => setSelectedAccount(e.target.value)}
+                className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer min-h-[44px]"
+              >
+                {accounts.map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.label} {acc.is_live ? "" : " [DEMO]"}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         }
       />
 
@@ -276,40 +307,40 @@ function DashboardContent() {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-3 sm:gap-4">
         {(() => {
           const cur = status?.currency || "USD";
-          const sym = cur === "USC" ? "¢" : "$";
+          const sym = cur === "USC" ? "\u00a2" : "$";
           return (
             <>
               <StatCard
                 label="Balance"
-                value={status ? `${sym}${status.balance.toLocaleString()}` : "—"}
+                value={status ? `${sym}${status.balance.toLocaleString()}` : "---"}
               />
               <StatCard
                 label="Equity"
-                value={status ? `${sym}${status.equity.toLocaleString()}` : "—"}
+                value={status ? `${sym}${status.equity.toLocaleString()}` : "---"}
               />
               <StatCard
                 label="Floating P/L"
                 value={
                   status
                     ? `${status.floating_pl >= 0 ? "+" : "-"}${sym}${Math.abs(status.floating_pl).toFixed(2)}`
-                    : "—"
+                    : "---"
                 }
                 color={floatingColor}
               />
               <StatCard
                 label="Drawdown"
-                value={status ? `${status.drawdown_pct.toFixed(2)}%` : "—"}
+                value={status ? `${status.drawdown_pct.toFixed(2)}%` : "---"}
                 color={ddColor}
               />
               <StatCard
                 label="Free Margin"
                 value={
-                  status ? `${sym}${status.margin_free?.toLocaleString() ?? "—"}` : "—"
+                  status ? `${sym}${status.margin_free?.toLocaleString() ?? "---"}` : "---"
                 }
               />
               <StatCard
                 label="Positions"
-                value={status?.positions_count ?? "—"}
+                value={status?.positions_count ?? "---"}
               />
             </>
           );
@@ -331,12 +362,12 @@ function DashboardContent() {
 
       {/* Trading Calendar */}
       {selectedAccount && (
-        <TradingCalendar account={selectedAccount} currency={status?.currency as string} />
+        <TradingCalendar vpsId={selectedVps} account={selectedAccount} currency={status?.currency as string} />
       )}
 
       {/* Deposit & Withdrawal History */}
       {selectedAccount && (
-        <DepositHistory account={selectedAccount} currency={status?.currency as string} />
+        <DepositHistory vpsId={selectedVps} account={selectedAccount} currency={status?.currency as string} />
       )}
     </div>
   );

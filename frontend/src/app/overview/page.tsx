@@ -3,10 +3,13 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  getToken,
+  isAnyAuthenticated,
   clearToken,
   createWsUrl,
-  fetchOverview,
+  fetchAllVps,
+  getVpsList,
+  getToken,
+  type VpsFetchResult,
 } from "@/lib/api";
 import { useWebSocket } from "@/lib/useWebSocket";
 import { StatCard } from "@/components/StatCard";
@@ -30,6 +33,8 @@ interface CombinedStatus {
 
 interface AccountSummary {
   id: string;
+  vps_id?: string;
+  vps_label?: string;
   currency?: string;
   balance: number;
   equity: number;
@@ -57,8 +62,135 @@ interface PerfData {
   largest_loss: number;
 }
 
+interface OverviewResponse {
+  combined_status: CombinedStatus;
+  accounts: AccountSummary[];
+  positions: PositionWithAccount[];
+  performance: PerfData | null;
+}
+
 interface PositionWithAccount extends Position {
   account_id: string;
+}
+
+function mergeOverviewResults(
+  results: VpsFetchResult<OverviewResponse>[]
+): {
+  combined: CombinedStatus;
+  accounts: AccountSummary[];
+  positions: PositionWithAccount[];
+  performance: PerfData | null;
+  errors: string[];
+} {
+  const merged: CombinedStatus = {
+    balance: 0,
+    equity: 0,
+    floating_pl: 0,
+    drawdown_pct: 0,
+    margin: 0,
+    margin_free: 0,
+    positions_count: 0,
+    accounts_count: 0,
+    connected_count: 0,
+    total_deposit: 0,
+    total_withdrawal: 0,
+  };
+  const allAccounts: AccountSummary[] = [];
+  const allPositions: PositionWithAccount[] = [];
+  const errors: string[] = [];
+
+  // Performance merge accumulators
+  let totalTrades = 0;
+  let winningTrades = 0;
+  let losingTrades = 0;
+  let totalProfit = 0;
+  let totalLoss = 0;
+  let largestWin = 0;
+  let largestLoss = 0;
+  let hasPerf = false;
+
+  for (const r of results) {
+    if (r.error || !r.data) {
+      errors.push(`${r.label}: ${r.error || "No data"}`);
+      continue;
+    }
+
+    const d = r.data;
+    const cs = d.combined_status;
+
+    merged.balance += cs.balance;
+    merged.equity += cs.equity;
+    merged.floating_pl += cs.floating_pl;
+    merged.margin += cs.margin;
+    merged.margin_free += cs.margin_free;
+    merged.positions_count += cs.positions_count;
+    merged.accounts_count += cs.accounts_count;
+    merged.connected_count! += cs.connected_count ?? 0;
+    merged.total_deposit! += cs.total_deposit ?? 0;
+    merged.total_withdrawal! += cs.total_withdrawal ?? 0;
+
+    const showVpsLabel = getVpsList().length > 1;
+
+    for (const acc of d.accounts) {
+      allAccounts.push({
+        ...acc,
+        id: showVpsLabel ? `${r.vpsId}:${acc.id}` : acc.id,
+        vps_id: r.vpsId,
+        vps_label: r.label,
+      });
+    }
+
+    for (const pos of d.positions) {
+      allPositions.push({
+        ...pos,
+        account_id: showVpsLabel
+          ? `${r.vpsId}:${pos.account_id}`
+          : pos.account_id,
+      });
+    }
+
+    if (d.performance) {
+      hasPerf = true;
+      totalTrades += d.performance.total_trades;
+      winningTrades += d.performance.winning_trades;
+      losingTrades += d.performance.losing_trades;
+      totalProfit += d.performance.total_profit;
+      totalLoss += d.performance.total_loss;
+      if (d.performance.largest_win > largestWin)
+        largestWin = d.performance.largest_win;
+      if (d.performance.largest_loss < largestLoss)
+        largestLoss = d.performance.largest_loss;
+    }
+  }
+
+  // Recalculate drawdown from merged values
+  merged.drawdown_pct =
+    merged.balance > 0
+      ? Math.max(
+          0,
+          ((merged.balance - merged.equity) / merged.balance) * 100
+        )
+      : 0;
+
+  const performance: PerfData | null = hasPerf
+    ? {
+        total_trades: totalTrades,
+        winning_trades: winningTrades,
+        losing_trades: losingTrades,
+        win_rate: totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0,
+        profit_factor:
+          totalLoss !== 0 ? Math.abs(totalProfit / totalLoss) : 0,
+        net_profit: totalProfit + totalLoss,
+        total_profit: totalProfit,
+        total_loss: totalLoss,
+        average_profit: winningTrades > 0 ? totalProfit / winningTrades : 0,
+        average_loss: losingTrades > 0 ? totalLoss / losingTrades : 0,
+        largest_win: largestWin,
+        largest_loss: largestLoss,
+      }
+    : null;
+
+  return { combined: merged, accounts: allAccounts, positions: allPositions, performance, errors };
 }
 
 export default function OverviewPage() {
@@ -68,9 +200,10 @@ export default function OverviewPage() {
   const [positions, setPositions] = useState<PositionWithAccount[]>([]);
   const [performance, setPerformance] = useState<PerfData | null>(null);
   const [lastUpdate, setLastUpdate] = useState("");
+  const [vpsErrors, setVpsErrors] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!getToken()) {
+    if (!isAnyAuthenticated()) {
       router.replace("/login");
       return;
     }
@@ -79,11 +212,14 @@ export default function OverviewPage() {
 
   async function loadOverview() {
     try {
-      const data = await fetchOverview();
-      setCombined(data.combined_status);
-      setAccountsList(data.accounts);
-      setPositions(data.positions);
-      setPerformance(data.performance);
+      const results = await fetchAllVps<OverviewResponse>("/overview");
+      const { combined: c, accounts, positions: pos, performance: perf, errors } =
+        mergeOverviewResults(results);
+      setCombined(c);
+      setAccountsList(accounts);
+      setPositions(pos);
+      setPerformance(perf);
+      setVpsErrors(errors);
       setLastUpdate(new Date().toLocaleTimeString());
     } catch (err) {
       console.error("Overview fetch failed:", err);
@@ -99,9 +235,10 @@ export default function OverviewPage() {
     }, 5000);
   }, []);
 
-  const token = getToken();
+  const firstVps = getVpsList()[0];
+  const token = firstVps ? getToken(firstVps.id) : null;
   const { connected } = useWebSocket({
-    url: token ? createWsUrl() : "",
+    url: token ? createWsUrl(firstVps?.id) : "",
     onMessage: handleMessage,
   });
 
@@ -112,6 +249,8 @@ export default function OverviewPage() {
       : (combined?.drawdown_pct ?? 0) > 2
         ? "yellow"
         : "green";
+
+  const showVpsLabel = getVpsList().length > 1;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
@@ -144,39 +283,48 @@ export default function OverviewPage() {
         }}
       />
 
+      {/* VPS error warnings */}
+      {vpsErrors.length > 0 && (
+        <div className="bg-yellow-900/30 border border-yellow-700 text-yellow-300 text-sm rounded-lg px-4 py-2 space-y-1">
+          {vpsErrors.map((e, i) => (
+            <p key={i}>{e}</p>
+          ))}
+        </div>
+      )}
+
       {/* Stat cards + Performance side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 items-stretch">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 auto-rows-fr">
           <StatCard
             label="Total Balance"
-            value={combined ? `$${combined.balance.toLocaleString()}` : "—"}
+            value={combined ? `$${combined.balance.toLocaleString()}` : "---"}
           />
           <StatCard
             label="Total Equity"
-            value={combined ? `$${combined.equity.toLocaleString()}` : "—"}
+            value={combined ? `$${combined.equity.toLocaleString()}` : "---"}
           />
           <StatCard
             label="Floating P/L"
             value={
               combined
                 ? `${combined.floating_pl >= 0 ? "+" : "-"}$${Math.abs(combined.floating_pl).toFixed(2)}`
-                : "—"
+                : "---"
             }
             color={floatingColor}
           />
           <StatCard
             label="Drawdown"
-            value={combined ? `${combined.drawdown_pct.toFixed(2)}%` : "—"}
+            value={combined ? `${combined.drawdown_pct.toFixed(2)}%` : "---"}
             color={ddColor}
           />
           <StatCard
             label="Total Deposit"
-            value={combined ? `+$${(combined.total_deposit ?? 0).toLocaleString()}` : "—"}
+            value={combined ? `+$${(combined.total_deposit ?? 0).toLocaleString()}` : "---"}
             color="green"
           />
           <StatCard
             label="Total Withdrawal"
-            value={combined ? `-$${(combined.total_withdrawal ?? 0).toLocaleString()}` : "—"}
+            value={combined ? `-$${(combined.total_withdrawal ?? 0).toLocaleString()}` : "---"}
             color="red"
           />
         </div>
@@ -196,19 +344,30 @@ export default function OverviewPage() {
           {accountsList.map((acc) => {
             const fl = acc.floating_pl;
             const dd = acc.drawdown_pct;
-            const sym = acc.currency === "USC" ? "¢" : "$";
+            const sym = acc.currency === "USC" ? "\u00a2" : "$";
+            // Extract original account id (without vps prefix)
+            const origId = acc.id.includes(":") ? acc.id.split(":")[1] : acc.id;
             return (
               <div
                 key={acc.id}
                 className="bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-gray-700 transition-colors cursor-pointer"
-                onClick={() => router.push(`/dashboard?account=${acc.id}`)}
+                onClick={() =>
+                  router.push(
+                    `/dashboard?${acc.vps_id ? `vps=${acc.vps_id}&` : ""}account=${origId}`
+                  )
+                }
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 bg-blue-600/20 text-blue-400 rounded-lg flex items-center justify-center text-xs font-bold uppercase">
-                      {acc.id.slice(0, 2)}
+                      {origId.slice(0, 2)}
                     </div>
-                    <span className="font-medium uppercase">{acc.id}</span>
+                    <span className="font-medium uppercase">{origId}</span>
+                    {showVpsLabel && acc.vps_label && (
+                      <span className="px-1.5 py-0.5 bg-gray-700 text-gray-300 text-xs rounded font-medium">
+                        {acc.vps_label}
+                      </span>
+                    )}
                     <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
                       (acc.platform || "mt5") === "mt4"
                         ? "bg-purple-500/20 text-purple-400"

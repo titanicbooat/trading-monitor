@@ -2,7 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { login } from "@/lib/api";
+import { loginAll, getVpsList, type LoginResult } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -10,14 +10,25 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<LoginResult[]>([]);
+
+  const vpsList = getVpsList();
+  const showVpsResults = vpsList.length > 1 && results.length > 0;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    setResults([]);
     setLoading(true);
     try {
-      await login(username, password);
-      router.push("/overview");
+      const res = await loginAll(username, password);
+      setResults(res);
+      const anyOk = res.some((r) => r.ok);
+      if (anyOk) {
+        router.push("/overview");
+      } else {
+        setError(res[0]?.error || "Login failed");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -36,9 +47,27 @@ export default function LoginPage() {
           Sign in to your dashboard
         </p>
 
-        {error && (
+        {error && !showVpsResults && (
           <div className="bg-red-900/40 border border-red-700 text-red-300 text-sm rounded-lg px-4 py-2">
             {error}
+          </div>
+        )}
+
+        {showVpsResults && (
+          <div className="space-y-1.5">
+            {results.map((r) => (
+              <div
+                key={r.vpsId}
+                className={`flex items-center justify-between text-sm px-3 py-1.5 rounded-lg ${
+                  r.ok
+                    ? "bg-emerald-900/30 text-emerald-400"
+                    : "bg-red-900/30 text-red-400"
+                }`}
+              >
+                <span>{r.label}</span>
+                <span>{r.ok ? "Connected" : r.error}</span>
+              </div>
+            ))}
           </div>
         )}
 
@@ -69,7 +98,7 @@ export default function LoginPage() {
           disabled={loading}
           className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:cursor-not-allowed rounded-lg py-2.5 font-medium transition-colors"
         >
-          {loading ? "Signing in…" : "Sign In"}
+          {loading ? "Signing in..." : "Sign In"}
         </button>
       </form>
     </div>

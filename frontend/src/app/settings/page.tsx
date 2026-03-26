@@ -3,6 +3,7 @@
 import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
+  isAnyAuthenticated,
   getToken,
   clearToken,
   fetchAccounts,
@@ -10,6 +11,8 @@ import {
   addAccount,
   updateAccount,
   deleteAccount,
+  getVpsList,
+  getAuthenticatedVpsList,
 } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 
@@ -43,6 +46,10 @@ const emptyForm: AccountForm = {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const vpsList = getAuthenticatedVpsList();
+  const showVpsSelector = getVpsList().length > 1;
+
+  const [selectedVps, setSelectedVps] = useState<string>(vpsList[0]?.id || "default");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [terminals, setTerminals] = useState<string[]>([]);
   const [form, setForm] = useState<AccountForm>({ ...emptyForm });
@@ -54,17 +61,17 @@ export default function SettingsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!getToken()) {
+    if (!isAnyAuthenticated()) {
       router.replace("/login");
       return;
     }
     loadAccounts();
     loadTerminals();
-  }, [router]);
+  }, [router, selectedVps]);
 
   async function loadAccounts() {
     try {
-      setAccounts(await fetchAccounts());
+      setAccounts(await fetchAccounts(selectedVps));
     } catch (err) {
       console.error("Failed to load accounts:", err);
     }
@@ -72,7 +79,7 @@ export default function SettingsPage() {
 
   async function loadTerminals() {
     try {
-      setTerminals(await fetchTerminals());
+      setTerminals(await fetchTerminals(selectedVps));
     } catch {
       // ignore
     }
@@ -134,10 +141,10 @@ export default function SettingsPage() {
       };
 
       if (editingId) {
-        await updateAccount(editingId, data);
+        await updateAccount(selectedVps, editingId, data);
         setSuccess(`Account "${data.id}" updated`);
       } else {
-        await addAccount(data);
+        await addAccount(selectedVps, data);
         setSuccess(`Account "${data.id}" added`);
       }
       resetForm();
@@ -153,7 +160,7 @@ export default function SettingsPage() {
     setError("");
     setSuccess("");
     try {
-      await deleteAccount(accountId);
+      await deleteAccount(selectedVps, accountId);
       setSuccess(`Account "${accountId}" deleted`);
       setDeleteConfirm(null);
       await loadAccounts();
@@ -174,6 +181,25 @@ export default function SettingsPage() {
           clearToken();
           router.replace("/login");
         }}
+        rightSlot={
+          showVpsSelector ? (
+            <select
+              value={selectedVps}
+              onChange={(e) => {
+                setSelectedVps(e.target.value);
+                resetForm();
+                setSuccess("");
+              }}
+              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer min-h-[44px]"
+            >
+              {vpsList.map((vps) => (
+                <option key={vps.id} value={vps.id}>
+                  {vps.label}
+                </option>
+              ))}
+            </select>
+          ) : undefined
+        }
       />
 
       {/* Messages */}
@@ -266,7 +292,7 @@ export default function SettingsPage() {
                       )}
                     </p>
                     <p className="text-sm text-gray-500">
-                      Login: {acc.login} &middot; Server: {acc.server || "—"}
+                      Login: {acc.login} &middot; Server: {acc.server || "---"}
                     </p>
                     {acc.terminal_path && (
                       <p className="text-xs text-gray-600 font-mono truncate max-w-[200px] sm:max-w-md">
@@ -479,7 +505,7 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* MT4: Setup instructions (file-based) */}
+            {/* MT4: Setup instructions */}
             {form.platform === "mt4" && (
               <div className="bg-purple-900/20 border border-purple-800 rounded-xl p-4 space-y-3">
                 <p className="text-sm text-purple-300 font-medium">

@@ -21,14 +21,15 @@ interface DepositsData {
   };
 }
 
-export function DepositHistory({ account, currency }: { account?: string; currency?: string }) {
+export function DepositHistory({ vpsId, account, currency }: { vpsId: string; account?: string; currency?: string }) {
   const [data, setData] = useState<DepositsData | null>(null);
 
   useEffect(() => {
+    if (!vpsId) return;
     let cancelled = false;
-    fetchDeposits(account).then((d) => { if (!cancelled) setData(d); }).catch(() => {});
+    fetchDeposits(vpsId, account).then((d) => { if (!cancelled) setData(d); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [account]);
+  }, [vpsId, account]);
 
   const sym = currency === "USC" ? "¢" : "$";
 

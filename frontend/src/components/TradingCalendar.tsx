@@ -24,7 +24,7 @@ const MONTH_NAMES = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-export function TradingCalendar({ account, currency }: { account: string; currency?: string }) {
+export function TradingCalendar({ vpsId, account, currency }: { vpsId: string; account: string; currency?: string }) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [data, setData] = useState<CalendarData | null>(null);
@@ -34,14 +34,14 @@ export function TradingCalendar({ account, currency }: { account: string; curren
     if (!account) return;
     setLoading(true);
     try {
-      const res = await fetchCalendar(account, year, month);
+      const res = await fetchCalendar(vpsId, account, year, month);
       setData(res);
     } catch {
       // ignore
     } finally {
       setLoading(false);
     }
-  }, [account, year, month]);
+  }, [vpsId, account, year, month]);
 
   useEffect(() => {
     loadData();
