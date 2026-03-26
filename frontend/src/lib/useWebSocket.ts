@@ -6,26 +6,31 @@ interface UseWebSocketOptions {
   url: string;
   onMessage: (data: unknown) => void;
   reconnectMs?: number;
+  pollIntervalMs?: number;
 }
 
 export function useWebSocket({
   url,
   onMessage,
   reconnectMs = 3000,
+  pollIntervalMs = 30000,
 }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pollTimer = useRef<ReturnType<typeof setInterval>>(undefined);
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
 
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+  // Check if WebSocket is blocked (HTTPS page + ws:// URL)
+  const wsBlocked =
+    typeof window !== "undefined" &&
+    window.location.protocol === "https:" &&
+    url.startsWith("ws://");
 
-    // Block insecure ws:// from HTTPS pages (browser will throw)
-    if (typeof window !== "undefined" && window.location.protocol === "https:" && url.startsWith("ws://")) {
-      return;
-    }
+  const connect = useCallback(() => {
+    if (wsBlocked || !url) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     const ws = new WebSocket(url);
     wsRef.current = ws;
@@ -47,15 +52,32 @@ export function useWebSocket({
     };
 
     ws.onerror = () => ws.close();
-  }, [url, reconnectMs]);
+  }, [url, reconnectMs, wsBlocked]);
 
+  // Polling fallback when WebSocket is not available
   useEffect(() => {
-    connect();
-    return () => {
-      clearTimeout(reconnectTimer.current);
-      wsRef.current?.close();
-    };
-  }, [connect]);
+    if (wsBlocked) {
+      setConnected(true); // Show as "connected" since polling is active
+      // Trigger immediate refresh
+      onMessageRef.current({ type: "poll" });
+      // Poll at interval
+      pollTimer.current = setInterval(() => {
+        onMessageRef.current({ type: "poll" });
+      }, pollIntervalMs);
+      return () => clearInterval(pollTimer.current);
+    }
+  }, [wsBlocked, pollIntervalMs]);
+
+  // WebSocket connection
+  useEffect(() => {
+    if (!wsBlocked) {
+      connect();
+      return () => {
+        clearTimeout(reconnectTimer.current);
+        wsRef.current?.close();
+      };
+    }
+  }, [connect, wsBlocked]);
 
   return { connected };
 }

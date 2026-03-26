@@ -225,7 +225,7 @@ function DashboardContent() {
         subtitle={
           <>
             {connected ? (
-              <span className="text-emerald-400">● Connected</span>
+              <span className="text-emerald-400">● Live</span>
             ) : (
               <span className="text-red-400">● Disconnected</span>
             )}
