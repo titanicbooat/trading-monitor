@@ -37,7 +37,8 @@ export async function login(
 async function authFetch(path: string, params?: Record<string, string>) {
   const token = getToken();
   if (!token) throw new Error("Not authenticated");
-  const url = new URL(`${API_BASE}${path}`);
+  const base = API_BASE || (typeof window !== "undefined" ? window.location.origin : "");
+  const url = new URL(`${base}${path}`);
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
       if (v) url.searchParams.set(k, v);
