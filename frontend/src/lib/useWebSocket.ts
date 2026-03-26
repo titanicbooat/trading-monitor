@@ -22,6 +22,11 @@ export function useWebSocket({
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
+    // Block insecure ws:// from HTTPS pages (browser will throw)
+    if (typeof window !== "undefined" && window.location.protocol === "https:" && url.startsWith("ws://")) {
+      return;
+    }
+
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
