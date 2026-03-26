@@ -1,29 +1,53 @@
-// ── VPS Configuration ────────────────────────────────────────────────────────
+// ── VPS Configuration (stored in localStorage) ──────────────────────────────
 
 export interface VpsConfig {
   id: string;
+  url: string;
   label: string;
 }
 
-let _vpsList: VpsConfig[] | null = null;
+const VPS_STORAGE_KEY = "mt5_vps_list";
+const DEFAULT_VPS: VpsConfig = {
+  id: "default",
+  url: "http://78.46.241.125:8001",
+  label: "Default",
+};
 
 export function getVpsList(): VpsConfig[] {
-  if (_vpsList) return _vpsList;
+  if (typeof window === "undefined") return [DEFAULT_VPS];
   try {
-    _vpsList = JSON.parse(process.env.NEXT_PUBLIC_VPS_LIST || "[]");
+    const raw = localStorage.getItem(VPS_STORAGE_KEY);
+    if (raw) {
+      const list = JSON.parse(raw) as VpsConfig[];
+      if (list.length > 0) return list;
+    }
   } catch {
-    _vpsList = [];
+    // ignore
   }
-  // Fallback: single default VPS
-  if (!_vpsList || _vpsList.length === 0) {
-    _vpsList = [{ id: "default", label: "Default" }];
-  }
-  return _vpsList;
+  return [DEFAULT_VPS];
 }
 
-function isSingleVps(): boolean {
-  const list = getVpsList();
-  return list.length === 1 && list[0].id === "default";
+export function saveVpsList(list: VpsConfig[]) {
+  localStorage.setItem(VPS_STORAGE_KEY, JSON.stringify(list));
+}
+
+export function addVps(vps: VpsConfig) {
+  const list = getVpsList().filter((v) => v.id !== "default" || getVpsList().length > 1);
+  // Remove default placeholder if adding first real VPS
+  const cleaned = list[0]?.id === "default" && list.length === 1 ? [] : list;
+  cleaned.push(vps);
+  saveVpsList(cleaned);
+}
+
+export function removeVps(vpsId: string) {
+  const list = getVpsList().filter((v) => v.id !== vpsId);
+  saveVpsList(list.length > 0 ? list : [DEFAULT_VPS]);
+  clearToken(vpsId);
+}
+
+export function updateVps(vpsId: string, updated: VpsConfig) {
+  const list = getVpsList().map((v) => (v.id === vpsId ? updated : v));
+  saveVpsList(list);
 }
 
 // ── Token Management (per-VPS) ──────────────────────────────────────────────
@@ -31,7 +55,6 @@ function isSingleVps(): boolean {
 export function getToken(vpsId?: string): string | null {
   if (typeof window === "undefined") return null;
   if (vpsId) return localStorage.getItem(`mt5_token_${vpsId}`);
-  // Legacy fallback for single-VPS
   return localStorage.getItem("mt5_token");
 }
 
@@ -40,12 +63,12 @@ export function setToken(vpsId: string, token: string) {
 }
 
 export function clearToken(vpsId?: string) {
+  if (typeof window === "undefined") return;
   if (vpsId) {
     localStorage.removeItem(`mt5_token_${vpsId}`);
   } else {
-    // Clear all VPS tokens
-    const keys = Object.keys(localStorage).filter(
-      (k) => k.startsWith("mt5_token")
+    const keys = Object.keys(localStorage).filter((k) =>
+      k.startsWith("mt5_token")
     );
     keys.forEach((k) => localStorage.removeItem(k));
   }
@@ -66,19 +89,21 @@ function baseUrl(): string {
   return typeof window !== "undefined" ? window.location.origin : "";
 }
 
-function vpsApiPath(vpsId: string, path: string): string {
-  return `/api/vps/${vpsId}${path}`;
-}
-
 export async function login(
   vpsId: string,
   username: string,
   password: string
 ): Promise<string> {
-  const url = `${baseUrl()}${vpsApiPath(vpsId, "/token")}`;
+  const vps = getVpsList().find((v) => v.id === vpsId);
+  if (!vps) throw new Error("VPS not found");
+
+  const url = `${baseUrl()}/api/proxy/token`;
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-backend-url": vps.url,
+    },
     body: JSON.stringify({ username, password }),
   });
   if (!res.ok) {
@@ -119,7 +144,7 @@ export async function loginAll(
   );
 }
 
-// ── Auth Fetch (VPS-scoped) ─────────────────────────────────────────────────
+// ── Auth Fetch (via proxy) ──────────────────────────────────────────────────
 
 async function authFetch(
   vpsId: string,
@@ -128,14 +153,22 @@ async function authFetch(
 ) {
   const token = getToken(vpsId);
   if (!token) throw new Error("Not authenticated");
-  const url = new URL(`${baseUrl()}${vpsApiPath(vpsId, path)}`);
+
+  const vps = getVpsList().find((v) => v.id === vpsId);
+  if (!vps) throw new Error("VPS not found");
+
+  const url = new URL(`${baseUrl()}/api/proxy${path}`);
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
       if (v) url.searchParams.set(k, v);
     });
   }
+
   const res = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "x-backend-url": vps.url,
+    },
   });
   if (res.status === 401) {
     clearToken(vpsId);
@@ -153,12 +186,17 @@ async function authMutate(
 ) {
   const token = getToken(vpsId);
   if (!token) throw new Error("Not authenticated");
-  const url = `${baseUrl()}${vpsApiPath(vpsId, path)}`;
+
+  const vps = getVpsList().find((v) => v.id === vpsId);
+  if (!vps) throw new Error("VPS not found");
+
+  const url = `${baseUrl()}/api/proxy${path}`;
   const res = await fetch(url, {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      "x-backend-url": vps.url,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -286,6 +324,7 @@ export function deleteAccount(vpsId: string, accountId: string) {
 export function createWsUrl(vpsId?: string): string {
   const id = vpsId || getVpsList()[0]?.id || "default";
   const token = getToken(id);
-  const wsBase = process.env.NEXT_PUBLIC_WS_URL || "ws://78.46.241.125:8001";
+  const vps = getVpsList().find((v) => v.id === id);
+  const wsBase = vps?.url.replace(/^http/, "ws") || "ws://78.46.241.125:8001";
   return `${wsBase}/ws/dashboard?token=${token}`;
 }

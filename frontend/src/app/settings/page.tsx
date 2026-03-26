@@ -13,6 +13,8 @@ import {
   deleteAccount,
   getVpsList,
   getAuthenticatedVpsList,
+  saveVpsList,
+  type VpsConfig,
 } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 
@@ -44,12 +46,21 @@ const emptyForm: AccountForm = {
   platform: "mt5",
 };
 
+interface VpsForm {
+  id: string;
+  url: string;
+  label: string;
+}
+
+const emptyVpsForm: VpsForm = { id: "", url: "", label: "" };
+
 export default function SettingsPage() {
   const router = useRouter();
+  const [vpsCfgList, setVpsCfgList] = useState<VpsConfig[]>(getVpsList());
   const vpsList = getAuthenticatedVpsList();
-  const showVpsSelector = getVpsList().length > 1;
+  const showVpsSelector = vpsCfgList.length > 1;
 
-  const [selectedVps, setSelectedVps] = useState<string>(vpsList[0]?.id || "default");
+  const [selectedVps, setSelectedVps] = useState<string>(vpsList[0]?.id || vpsCfgList[0]?.id || "default");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [terminals, setTerminals] = useState<string[]>([]);
   const [form, setForm] = useState<AccountForm>({ ...emptyForm });
@@ -59,6 +70,59 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  // VPS management state
+  const [showVpsForm, setShowVpsForm] = useState(false);
+  const [vpsForm, setVpsForm] = useState<VpsForm>({ ...emptyVpsForm });
+  const [editingVpsId, setEditingVpsId] = useState<string | null>(null);
+  const [deleteVpsConfirm, setDeleteVpsConfirm] = useState<string | null>(null);
+
+  function handleAddVps() {
+    if (!vpsForm.id.trim() || !vpsForm.url.trim() || !vpsForm.label.trim()) {
+      setError("All VPS fields are required");
+      return;
+    }
+    if (!/^[a-z0-9-]+$/.test(vpsForm.id.trim())) {
+      setError("VPS ID must be lowercase letters, numbers, or hyphens");
+      return;
+    }
+    const newVps: VpsConfig = {
+      id: vpsForm.id.trim(),
+      url: vpsForm.url.trim().replace(/\/$/, ""),
+      label: vpsForm.label.trim(),
+    };
+    const list = vpsCfgList.filter((v) => v.id !== "default" || vpsCfgList.length > 1);
+    const cleaned = list.length === 1 && list[0].id === "default" ? [] : list;
+    if (editingVpsId) {
+      const updated = cleaned.map((v) => (v.id === editingVpsId ? newVps : v));
+      saveVpsList(updated);
+      setVpsCfgList(updated);
+      setSuccess(`VPS "${newVps.label}" updated`);
+    } else {
+      if (cleaned.find((v) => v.id === newVps.id)) {
+        setError(`VPS ID "${newVps.id}" already exists`);
+        return;
+      }
+      cleaned.push(newVps);
+      saveVpsList(cleaned);
+      setVpsCfgList(cleaned);
+      setSuccess(`VPS "${newVps.label}" added. Login again to connect.`);
+    }
+    setVpsForm({ ...emptyVpsForm });
+    setShowVpsForm(false);
+    setEditingVpsId(null);
+    setError("");
+  }
+
+  function handleDeleteVps(vpsId: string) {
+    const list = vpsCfgList.filter((v) => v.id !== vpsId);
+    const final = list.length > 0 ? list : [{ id: "default", url: "http://localhost:8001", label: "Default" }];
+    saveVpsList(final);
+    setVpsCfgList(final);
+    setDeleteVpsConfirm(null);
+    if (selectedVps === vpsId) setSelectedVps(final[0].id);
+    setSuccess(`VPS "${vpsId}" removed`);
+  }
 
   useEffect(() => {
     if (!isAnyAuthenticated()) {
@@ -588,6 +652,172 @@ export default function SettingsPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ── VPS Management ─────────────────────────────────────────────── */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-gray-400">
+            VPS Servers ({vpsCfgList.length})
+          </h2>
+          {!showVpsForm && (
+            <button
+              onClick={() => {
+                setVpsForm({ ...emptyVpsForm });
+                setEditingVpsId(null);
+                setShowVpsForm(true);
+                setError("");
+                setSuccess("");
+              }}
+              className="text-sm bg-blue-600 hover:bg-blue-500 rounded-lg px-4 py-1.5 font-medium transition-colors"
+            >
+              + Add VPS
+            </button>
+          )}
+        </div>
+
+        <div className="divide-y divide-gray-800/50">
+          {vpsCfgList.map((vps) => (
+            <div
+              key={vps.id}
+              className="px-3 sm:px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between hover:bg-gray-800/30"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-cyan-600/20 text-cyan-400 rounded-lg flex items-center justify-center text-sm font-bold uppercase">
+                  {vps.label.slice(0, 2)}
+                </div>
+                <div>
+                  <p className="font-medium">
+                    {vps.label}
+                    {getToken(vps.id) ? (
+                      <span className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-emerald-500/20 text-emerald-400">
+                        CONNECTED
+                      </span>
+                    ) : (
+                      <span className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-gray-500/20 text-gray-400">
+                        NOT CONNECTED
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-sm text-gray-500 font-mono">{vps.url}</p>
+                  <p className="text-xs text-gray-600">ID: {vps.id}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setVpsForm({ id: vps.id, url: vps.url, label: vps.label });
+                    setEditingVpsId(vps.id);
+                    setShowVpsForm(true);
+                    setError("");
+                    setSuccess("");
+                  }}
+                  className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-3 py-1.5 transition-colors"
+                >
+                  Edit
+                </button>
+                {deleteVpsConfirm === vps.id ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleDeleteVps(vps.id)}
+                      className="text-sm text-red-400 hover:text-red-300 border border-red-700 rounded-lg px-3 py-1.5 transition-colors"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => setDeleteVpsConfirm(null)}
+                      className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-3 py-1.5 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setDeleteVpsConfirm(vps.id)}
+                    className="text-sm text-red-400 hover:text-red-300 border border-gray-700 rounded-lg px-3 py-1.5 transition-colors"
+                    disabled={vpsCfgList.length <= 1}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* VPS Add/Edit Form */}
+      {showVpsForm && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+          <h2 className="text-lg font-medium mb-4">
+            {editingVpsId ? `Edit VPS: ${editingVpsId}` : "Add New VPS"}
+          </h2>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <label className="text-sm text-gray-400">
+                  VPS ID <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={vpsForm.id}
+                  onChange={(e) =>
+                    setVpsForm({ ...vpsForm, id: e.target.value.toLowerCase() })
+                  }
+                  placeholder="e.g. hetzner, contabo"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={!!editingVpsId}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm text-gray-400">
+                  Label <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={vpsForm.label}
+                  onChange={(e) =>
+                    setVpsForm({ ...vpsForm, label: e.target.value })
+                  }
+                  placeholder="e.g. Hetzner DE"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm text-gray-400">
+                  Backend URL <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={vpsForm.url}
+                  onChange={(e) =>
+                    setVpsForm({ ...vpsForm, url: e.target.value })
+                  }
+                  placeholder="http://78.46.241.125:8001"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleAddVps}
+                className="bg-blue-600 hover:bg-blue-500 rounded-lg px-6 py-2.5 font-medium transition-colors"
+              >
+                {editingVpsId ? "Update VPS" : "Add VPS"}
+              </button>
+              <button
+                onClick={() => {
+                  setShowVpsForm(false);
+                  setEditingVpsId(null);
+                  setError("");
+                }}
+                className="text-gray-400 hover:text-white border border-gray-700 rounded-lg px-6 py-2.5 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
