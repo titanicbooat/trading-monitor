@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   isAnyAuthenticated,
@@ -17,6 +17,45 @@ import {
   type VpsConfig,
 } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
+
+// ── Modal ───────────────────────────────────────────────────────────────────
+
+function Modal({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-medium">{title}</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-white text-xl leading-none px-2"
+          >
+            &times;
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── Types ───────────────────────────────────────────────────────────────────
 
 interface Account {
   id: string;
@@ -54,13 +93,17 @@ interface VpsForm {
 
 const emptyVpsForm: VpsForm = { id: "", url: "", label: "" };
 
+// ── Page ────────────────────────────────────────────────────────────────────
+
 export default function SettingsPage() {
   const router = useRouter();
   const [vpsCfgList, setVpsCfgList] = useState<VpsConfig[]>(getVpsList());
   const vpsList = getAuthenticatedVpsList();
   const showVpsSelector = vpsCfgList.length > 1;
 
-  const [selectedVps, setSelectedVps] = useState<string>(vpsList[0]?.id || vpsCfgList[0]?.id || "default");
+  const [selectedVps, setSelectedVps] = useState<string>(
+    vpsList[0]?.id || vpsCfgList[0]?.id || "default"
+  );
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [terminals, setTerminals] = useState<string[]>([]);
   const [form, setForm] = useState<AccountForm>({ ...emptyForm });
@@ -77,6 +120,8 @@ export default function SettingsPage() {
   const [editingVpsId, setEditingVpsId] = useState<string | null>(null);
   const [deleteVpsConfirm, setDeleteVpsConfirm] = useState<string | null>(null);
 
+  // ── VPS handlers ──────────────────────────────────────────────────────
+
   function handleAddVps() {
     if (!vpsForm.id.trim() || !vpsForm.url.trim() || !vpsForm.label.trim()) {
       setError("All VPS fields are required");
@@ -91,10 +136,15 @@ export default function SettingsPage() {
       url: vpsForm.url.trim().replace(/\/$/, ""),
       label: vpsForm.label.trim(),
     };
-    const list = vpsCfgList.filter((v) => v.id !== "default" || vpsCfgList.length > 1);
-    const cleaned = list.length === 1 && list[0].id === "default" ? [] : list;
+    const list = vpsCfgList.filter(
+      (v) => v.id !== "default" || vpsCfgList.length > 1
+    );
+    const cleaned =
+      list.length === 1 && list[0].id === "default" ? [] : list;
     if (editingVpsId) {
-      const updated = cleaned.map((v) => (v.id === editingVpsId ? newVps : v));
+      const updated = cleaned.map((v) =>
+        v.id === editingVpsId ? newVps : v
+      );
       saveVpsList(updated);
       setVpsCfgList(updated);
       setSuccess(`VPS "${newVps.label}" updated`);
@@ -116,13 +166,18 @@ export default function SettingsPage() {
 
   function handleDeleteVps(vpsId: string) {
     const list = vpsCfgList.filter((v) => v.id !== vpsId);
-    const final = list.length > 0 ? list : [{ id: "default", url: "http://localhost:8001", label: "Default" }];
+    const final =
+      list.length > 0
+        ? list
+        : [{ id: "default", url: "http://localhost:8001", label: "Default" }];
     saveVpsList(final);
     setVpsCfgList(final);
     setDeleteVpsConfirm(null);
     if (selectedVps === vpsId) setSelectedVps(final[0].id);
     setSuccess(`VPS "${vpsId}" removed`);
   }
+
+  // ── Account handlers ──────────────────────────────────────────────────
 
   useEffect(() => {
     if (!isAnyAuthenticated()) {
@@ -200,7 +255,8 @@ export default function SettingsPage() {
         login: loginNum,
         password: form.password,
         server: form.server.trim(),
-        terminal_path: form.platform === "mt5" ? form.terminal_path.trim() : "",
+        terminal_path:
+          form.platform === "mt5" ? form.terminal_path.trim() : "",
         platform: form.platform,
       };
 
@@ -214,7 +270,9 @@ export default function SettingsPage() {
       resetForm();
       await loadAccounts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save account");
+      setError(
+        err instanceof Error ? err.message : "Failed to save account"
+      );
     } finally {
       setLoading(false);
     }
@@ -234,12 +292,14 @@ export default function SettingsPage() {
     }
   }
 
+  // ── Render ────────────────────────────────────────────────────────────
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
       {/* Header */}
       <PageHeader
         title="Account Settings"
-        subtitle="Manage your MT4 / MT5 trading accounts"
+        subtitle="Manage your VPS servers and trading accounts"
         currentPage="settings"
         onLogout={() => {
           clearToken();
@@ -278,6 +338,100 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* ── VPS Servers (top) ──────────────────────────────────────────── */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-gray-400">
+            VPS Servers ({vpsCfgList.length})
+          </h2>
+          <button
+            onClick={() => {
+              setVpsForm({ ...emptyVpsForm });
+              setEditingVpsId(null);
+              setShowVpsForm(true);
+              setError("");
+              setSuccess("");
+            }}
+            className="text-sm bg-blue-600 hover:bg-blue-500 rounded-lg px-4 py-1.5 font-medium transition-colors"
+          >
+            + Add VPS
+          </button>
+        </div>
+
+        <div className="divide-y divide-gray-800/50">
+          {vpsCfgList.map((vps) => (
+            <div
+              key={vps.id}
+              className="px-3 sm:px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between hover:bg-gray-800/30"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-cyan-600/20 text-cyan-400 rounded-lg flex items-center justify-center text-sm font-bold uppercase">
+                  {vps.label.slice(0, 2)}
+                </div>
+                <div>
+                  <p className="font-medium">
+                    {vps.label}
+                    {getToken(vps.id) ? (
+                      <span className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-emerald-500/20 text-emerald-400">
+                        CONNECTED
+                      </span>
+                    ) : (
+                      <span className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-gray-500/20 text-gray-400">
+                        NOT CONNECTED
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-sm text-gray-500 font-mono">{vps.url}</p>
+                  <p className="text-xs text-gray-600">ID: {vps.id}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setVpsForm({
+                      id: vps.id,
+                      url: vps.url,
+                      label: vps.label,
+                    });
+                    setEditingVpsId(vps.id);
+                    setShowVpsForm(true);
+                    setError("");
+                    setSuccess("");
+                  }}
+                  className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-3 py-1.5 transition-colors"
+                >
+                  Edit
+                </button>
+                {deleteVpsConfirm === vps.id ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleDeleteVps(vps.id)}
+                      className="text-sm text-red-400 hover:text-red-300 border border-red-700 rounded-lg px-3 py-1.5 transition-colors"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => setDeleteVpsConfirm(null)}
+                      className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-3 py-1.5 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setDeleteVpsConfirm(vps.id)}
+                    className="text-sm text-red-400 hover:text-red-300 border border-gray-700 rounded-lg px-3 py-1.5 transition-colors"
+                    disabled={vpsCfgList.length <= 1}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Detected Terminals */}
       {terminals.length > 0 && (
         <div className="bg-blue-900/20 border border-blue-800 rounded-xl p-4">
@@ -292,24 +446,22 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Account List */}
+      {/* ── Accounts ───────────────────────────────────────────────────── */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
           <h2 className="text-sm font-medium text-gray-400">
             Accounts ({accounts.length})
           </h2>
-          {!showForm && (
-            <button
-              onClick={() => {
-                resetForm();
-                setShowForm(true);
-                setSuccess("");
-              }}
-              className="text-sm bg-blue-600 hover:bg-blue-500 rounded-lg px-4 py-1.5 font-medium transition-colors"
-            >
-              + Add Account
-            </button>
-          )}
+          <button
+            onClick={() => {
+              resetForm();
+              setShowForm(true);
+              setSuccess("");
+            }}
+            className="text-sm bg-blue-600 hover:bg-blue-500 rounded-lg px-4 py-1.5 font-medium transition-colors"
+          >
+            + Add Account
+          </button>
         </div>
 
         <div className="divide-y divide-gray-800/50">
@@ -413,413 +565,251 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Add/Edit Form */}
-      {showForm && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-          <h2 className="text-lg font-medium mb-4">
-            {editingId ? `Edit Account: ${editingId}` : "Add New Account"}
-          </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Platform selector */}
-            <div className="space-y-1">
-              <label className="text-sm text-gray-400">Platform</label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, platform: "mt5" })}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    form.platform === "mt5"
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
-                  }`}
-                >
-                  MetaTrader 5
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, platform: "mt4" })}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    form.platform === "mt4"
-                      ? "bg-purple-600 text-white"
-                      : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
-                  }`}
-                >
-                  MetaTrader 4
-                </button>
-              </div>
-            </div>
+      {/* ── VPS Popup ──────────────────────────────────────────────────── */}
+      <Modal
+        open={showVpsForm}
+        onClose={() => {
+          setShowVpsForm(false);
+          setEditingVpsId(null);
+          setError("");
+        }}
+        title={editingVpsId ? `Edit VPS: ${editingVpsId}` : "Add New VPS"}
+      >
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-sm text-gray-400">
+              VPS ID <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={vpsForm.id}
+              onChange={(e) =>
+                setVpsForm({ ...vpsForm, id: e.target.value.toLowerCase() })
+              }
+              placeholder="e.g. hetzner, contabo"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={!!editingVpsId}
+            />
+            <p className="text-xs text-gray-600">
+              Lowercase letters, numbers, hyphens
+            </p>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm text-gray-400">
+              Label <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={vpsForm.label}
+              onChange={(e) =>
+                setVpsForm({ ...vpsForm, label: e.target.value })
+              }
+              placeholder="e.g. Hetzner DE"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm text-gray-400">
+              Backend URL <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={vpsForm.url}
+              onChange={(e) =>
+                setVpsForm({ ...vpsForm, url: e.target.value })
+              }
+              placeholder="http://78.46.241.125:8001"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+            />
+          </div>
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              onClick={handleAddVps}
+              className="bg-blue-600 hover:bg-blue-500 rounded-lg px-6 py-2.5 font-medium transition-colors"
+            >
+              {editingVpsId ? "Update VPS" : "Add VPS"}
+            </button>
+            <button
+              onClick={() => {
+                setShowVpsForm(false);
+                setEditingVpsId(null);
+                setError("");
+              }}
+              className="text-gray-400 hover:text-white border border-gray-700 rounded-lg px-6 py-2.5 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-sm text-gray-400">
-                  Account ID <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.id}
-                  onChange={(e) =>
-                    setForm({ ...form, id: e.target.value.toLowerCase() })
-                  }
-                  placeholder="e.g. main, hedge, scalp"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                <p className="text-xs text-gray-600">
-                  Lowercase letters, numbers, hyphens
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm text-gray-400">
-                  Login <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="number"
-                  value={form.login}
-                  onChange={(e) => setForm({ ...form, login: e.target.value })}
-                  placeholder="e.g. 12345678"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                {form.platform === "mt4" && form.login && (
-                  <p className="text-xs text-purple-400">
-                    EA will write to: monitor_{form.login}.json
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm text-gray-400">Password</label>
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={(e) =>
-                    setForm({ ...form, password: e.target.value })
-                  }
-                  placeholder={editingId ? "(unchanged if empty)" : "password"}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-sm text-gray-400">Server</label>
-                <input
-                  type="text"
-                  value={form.server}
-                  onChange={(e) => setForm({ ...form, server: e.target.value })}
-                  placeholder="e.g. RoboForex-Pro"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* MT5: Terminal Path */}
-            {form.platform === "mt5" && (
-              <div className="space-y-1">
-                <label className="text-sm text-gray-400">
-                  Terminal Path
-                  <span className="text-gray-600 ml-1">
-                    (required for live data)
-                  </span>
-                </label>
-                {terminals.length > 0 ? (
-                  <div className="space-y-2">
-                    <select
-                      value={form.terminal_path}
-                      onChange={(e) =>
-                        setForm({ ...form, terminal_path: e.target.value })
-                      }
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">-- No terminal (demo mode) --</option>
-                      {terminals.map((t, i) => (
-                        <option key={i} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-600">
-                      Or type a custom path below:
-                    </p>
-                    <input
-                      type="text"
-                      value={form.terminal_path}
-                      onChange={(e) =>
-                        setForm({ ...form, terminal_path: e.target.value })
-                      }
-                      placeholder="C:\Program Files\...\terminal64.exe"
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                    />
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    value={form.terminal_path}
-                    onChange={(e) =>
-                      setForm({ ...form, terminal_path: e.target.value })
-                    }
-                    placeholder="C:\Program Files\...\terminal64.exe"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                  />
-                )}
-                <p className="text-xs text-gray-600">
-                  Full path to terminal64.exe. Leave empty for demo/simulated
-                  data.
-                </p>
-              </div>
-            )}
-
-            {/* MT4: Setup instructions */}
-            {form.platform === "mt4" && (
-              <div className="bg-purple-900/20 border border-purple-800 rounded-xl p-4 space-y-3">
-                <p className="text-sm text-purple-300 font-medium">
-                  MT4 Setup Instructions
-                </p>
-                <div className="text-xs text-purple-300/80 space-y-2">
-                  <p>
-                    MT4 sends data via an Expert Advisor (EA) that writes to a
-                    local file. The backend reads this file automatically.
-                  </p>
-                  <ol className="list-decimal list-inside space-y-1.5 ml-1">
-                    <li>
-                      Copy{" "}
-                      <span className="font-mono text-purple-400">
-                        MonitorEA.mq4
-                      </span>{" "}
-                      to your MT4{" "}
-                      <span className="font-mono text-purple-400">
-                        MQL4/Experts/
-                      </span>{" "}
-                      folder and compile it
-                    </li>
-                    <li>
-                      In MT4: enable{" "}
-                      <span className="text-purple-400">AutoTrading</span>{" "}
-                      (toolbar button)
-                    </li>
-                    <li>
-                      Drag{" "}
-                      <span className="text-purple-400">MonitorEA</span> onto
-                      any chart
-                    </li>
-                    <li>
-                      Tick{" "}
-                      <span className="text-purple-400">
-                        &quot;Allow live trading&quot;
-                      </span>{" "}
-                      in EA properties &gt; Common tab
-                    </li>
-                  </ol>
-                  <div className="mt-2 pt-2 border-t border-purple-800/50">
-                    <p className="text-purple-400 font-medium mb-1">
-                      How it works:
-                    </p>
-                    <p>
-                      The EA writes account data every 10 seconds to:
-                      <br />
-                      <code className="bg-purple-900/50 px-1.5 py-0.5 rounded text-purple-300 text-[11px]">
-                        %APPDATA%\MetaQuotes\Terminal\Common\Files\monitor_
-                        {form.login || "<login>"}.json
-                      </code>
-                    </p>
-                    <p className="mt-1">
-                      The backend automatically detects and reads this file. No
-                      network configuration needed.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center gap-3 pt-2">
+      {/* ── Account Popup ──────────────────────────────────────────────── */}
+      <Modal
+        open={showForm}
+        onClose={() => resetForm()}
+        title={editingId ? `Edit Account: ${editingId}` : "Add New Account"}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Platform selector */}
+          <div className="space-y-1">
+            <label className="text-sm text-gray-400">Platform</label>
+            <div className="flex gap-2">
               <button
-                type="submit"
-                disabled={loading}
-                className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:cursor-not-allowed rounded-lg px-6 py-2.5 font-medium transition-colors"
+                type="button"
+                onClick={() => setForm({ ...form, platform: "mt5" })}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  form.platform === "mt5"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+                }`}
               >
-                {loading
-                  ? "Saving..."
-                  : editingId
-                    ? "Update Account"
-                    : "Add Account"}
+                MetaTrader 5
               </button>
               <button
                 type="button"
-                onClick={resetForm}
-                className="text-gray-400 hover:text-white border border-gray-700 rounded-lg px-6 py-2.5 transition-colors"
+                onClick={() => setForm({ ...form, platform: "mt4" })}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  form.platform === "mt4"
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+                }`}
               >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* ── VPS Management ─────────────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-          <h2 className="text-sm font-medium text-gray-400">
-            VPS Servers ({vpsCfgList.length})
-          </h2>
-          {!showVpsForm && (
-            <button
-              onClick={() => {
-                setVpsForm({ ...emptyVpsForm });
-                setEditingVpsId(null);
-                setShowVpsForm(true);
-                setError("");
-                setSuccess("");
-              }}
-              className="text-sm bg-blue-600 hover:bg-blue-500 rounded-lg px-4 py-1.5 font-medium transition-colors"
-            >
-              + Add VPS
-            </button>
-          )}
-        </div>
-
-        <div className="divide-y divide-gray-800/50">
-          {vpsCfgList.map((vps) => (
-            <div
-              key={vps.id}
-              className="px-3 sm:px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between hover:bg-gray-800/30"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-cyan-600/20 text-cyan-400 rounded-lg flex items-center justify-center text-sm font-bold uppercase">
-                  {vps.label.slice(0, 2)}
-                </div>
-                <div>
-                  <p className="font-medium">
-                    {vps.label}
-                    {getToken(vps.id) ? (
-                      <span className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-emerald-500/20 text-emerald-400">
-                        CONNECTED
-                      </span>
-                    ) : (
-                      <span className="ml-2 px-1.5 py-0.5 text-xs rounded font-medium bg-gray-500/20 text-gray-400">
-                        NOT CONNECTED
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-sm text-gray-500 font-mono">{vps.url}</p>
-                  <p className="text-xs text-gray-600">ID: {vps.id}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => {
-                    setVpsForm({ id: vps.id, url: vps.url, label: vps.label });
-                    setEditingVpsId(vps.id);
-                    setShowVpsForm(true);
-                    setError("");
-                    setSuccess("");
-                  }}
-                  className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-3 py-1.5 transition-colors"
-                >
-                  Edit
-                </button>
-                {deleteVpsConfirm === vps.id ? (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleDeleteVps(vps.id)}
-                      className="text-sm text-red-400 hover:text-red-300 border border-red-700 rounded-lg px-3 py-1.5 transition-colors"
-                    >
-                      Confirm
-                    </button>
-                    <button
-                      onClick={() => setDeleteVpsConfirm(null)}
-                      className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-3 py-1.5 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setDeleteVpsConfirm(vps.id)}
-                    className="text-sm text-red-400 hover:text-red-300 border border-gray-700 rounded-lg px-3 py-1.5 transition-colors"
-                    disabled={vpsCfgList.length <= 1}
-                  >
-                    Delete
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* VPS Add/Edit Form */}
-      {showVpsForm && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-          <h2 className="text-lg font-medium mb-4">
-            {editingVpsId ? `Edit VPS: ${editingVpsId}` : "Add New VPS"}
-          </h2>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="space-y-1">
-                <label className="text-sm text-gray-400">
-                  VPS ID <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={vpsForm.id}
-                  onChange={(e) =>
-                    setVpsForm({ ...vpsForm, id: e.target.value.toLowerCase() })
-                  }
-                  placeholder="e.g. hetzner, contabo"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={!!editingVpsId}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm text-gray-400">
-                  Label <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={vpsForm.label}
-                  onChange={(e) =>
-                    setVpsForm({ ...vpsForm, label: e.target.value })
-                  }
-                  placeholder="e.g. Hetzner DE"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm text-gray-400">
-                  Backend URL <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={vpsForm.url}
-                  onChange={(e) =>
-                    setVpsForm({ ...vpsForm, url: e.target.value })
-                  }
-                  placeholder="http://78.46.241.125:8001"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleAddVps}
-                className="bg-blue-600 hover:bg-blue-500 rounded-lg px-6 py-2.5 font-medium transition-colors"
-              >
-                {editingVpsId ? "Update VPS" : "Add VPS"}
-              </button>
-              <button
-                onClick={() => {
-                  setShowVpsForm(false);
-                  setEditingVpsId(null);
-                  setError("");
-                }}
-                className="text-gray-400 hover:text-white border border-gray-700 rounded-lg px-6 py-2.5 transition-colors"
-              >
-                Cancel
+                MetaTrader 4
               </button>
             </div>
           </div>
-        </div>
-      )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm text-gray-400">
+                Account ID <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={form.id}
+                onChange={(e) =>
+                  setForm({ ...form, id: e.target.value.toLowerCase() })
+                }
+                placeholder="e.g. main, hedge, scalp"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm text-gray-400">
+                Login <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="number"
+                value={form.login}
+                onChange={(e) => setForm({ ...form, login: e.target.value })}
+                placeholder="e.g. 12345678"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+              {form.platform === "mt4" && form.login && (
+                <p className="text-xs text-purple-400">
+                  EA file: monitor_{form.login}.json
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm text-gray-400">Password</label>
+              <input
+                type="password"
+                value={form.password}
+                onChange={(e) =>
+                  setForm({ ...form, password: e.target.value })
+                }
+                placeholder={editingId ? "(unchanged if empty)" : "password"}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm text-gray-400">Server</label>
+              <input
+                type="text"
+                value={form.server}
+                onChange={(e) =>
+                  setForm({ ...form, server: e.target.value })
+                }
+                placeholder="e.g. RoboForex-Pro"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* MT5: Terminal Path */}
+          {form.platform === "mt5" && (
+            <div className="space-y-1">
+              <label className="text-sm text-gray-400">
+                Terminal Path
+                <span className="text-gray-600 ml-1">(for live data)</span>
+              </label>
+              {terminals.length > 0 ? (
+                <select
+                  value={form.terminal_path}
+                  onChange={(e) =>
+                    setForm({ ...form, terminal_path: e.target.value })
+                  }
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- No terminal --</option>
+                  {terminals.map((t, i) => (
+                    <option key={i} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={form.terminal_path}
+                  onChange={(e) =>
+                    setForm({ ...form, terminal_path: e.target.value })
+                  }
+                  placeholder="C:\Program Files\...\terminal64.exe"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                />
+              )}
+            </div>
+          )}
+
+          {/* MT4 info */}
+          {form.platform === "mt4" && (
+            <div className="bg-purple-900/20 border border-purple-800 rounded-lg p-3">
+              <p className="text-xs text-purple-300/80">
+                MT4 uses MonitorEA to write data to a local file. The backend
+                reads it automatically. Drag the EA onto any chart in MT4.
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:cursor-not-allowed rounded-lg px-6 py-2.5 font-medium transition-colors"
+            >
+              {loading
+                ? "Saving..."
+                : editingId
+                  ? "Update Account"
+                  : "Add Account"}
+            </button>
+            <button
+              type="button"
+              onClick={resetForm}
+              className="text-gray-400 hover:text-white border border-gray-700 rounded-lg px-6 py-2.5 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
