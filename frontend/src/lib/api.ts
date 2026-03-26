@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -78,8 +78,8 @@ export const fetchTrades = (account?: string) => authFetch("/api/trades", accoun
 
 export function createWsUrl(): string {
   const token = getToken();
-  const base = API_BASE.replace(/^http/, "ws");
-  return `${base}/ws/dashboard?token=${token}`;
+  const wsBase = process.env.NEXT_PUBLIC_WS_URL || "ws://78.46.241.125:8001";
+  return `${wsBase}/ws/dashboard?token=${token}`;
 }
 
 // ── Account CRUD ────────────────────────────────────────────────────────────
