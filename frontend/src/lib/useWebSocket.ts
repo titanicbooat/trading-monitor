@@ -13,7 +13,7 @@ export function useWebSocket({
   url,
   onMessage,
   reconnectMs = 3000,
-  pollIntervalMs = 30000,
+  pollIntervalMs = 10000,
 }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
