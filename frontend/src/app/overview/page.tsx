@@ -180,7 +180,7 @@ function mergeOverviewResults(
         win_rate: totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0,
         profit_factor:
           totalLoss !== 0 ? Math.abs(totalProfit / totalLoss) : 0,
-        net_profit: totalProfit + totalLoss,
+        net_profit: totalProfit - totalLoss,
         total_profit: totalProfit,
         total_loss: totalLoss,
         average_profit: winningTrades > 0 ? totalProfit / winningTrades : 0,
