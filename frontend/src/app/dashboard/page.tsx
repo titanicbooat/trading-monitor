@@ -179,22 +179,53 @@ function DashboardContent() {
     return () => clearInterval(interval);
   }, [selectedAccount, selectedVps]);
 
-  // WebSocket handler — filter by selected account
+  // Reload dashboard data
+  async function reloadData() {
+    if (!selectedAccount || !getToken(selectedVps)) return;
+    try {
+      const [s, p, h] = await Promise.all([
+        fetchStatus(selectedVps, selectedAccount),
+        fetchPositions(selectedVps, selectedAccount),
+        fetchHistory(selectedVps, selectedAccount),
+      ]);
+      if (s && !s.detail) setStatus(s);
+      setPositions(p || []);
+      if (h) {
+        setHistory(
+          h.map((snap: Record<string, unknown>) => ({
+            timestamp: snap.timestamp as string,
+            equity: snap.equity as number,
+            balance: snap.balance as number,
+            drawdown_pct: (snap.drawdown_pct as number) ?? 0,
+            floating_pl: (snap.floating_pl as number) ?? 0,
+            profit: (snap.profit as number) ?? 0,
+          })).slice(-500)
+        );
+      }
+      setLastUpdate(new Date().toLocaleTimeString());
+    } catch {
+      // ignore
+    }
+  }
+
+  // WebSocket/poll handler
   const handleMessage = useCallback(
     (data: unknown) => {
-      const msg = data as {
-        type: string;
-        account_id: string;
-        status: AccountStatus;
-        positions: Position[];
-        history: SnapshotPoint[];
-      };
+      const msg = data as { type: string; account_id?: string; status?: AccountStatus; positions?: Position[]; history?: SnapshotPoint[] };
+
+      // Polling fallback — refetch from API
+      if (msg.type === "poll") {
+        reloadData();
+        return;
+      }
+
+      // Real WebSocket update
       if (msg.type === "update" && msg.account_id === selectedAccount) {
         if (msg.status) setStatus(msg.status);
         if (msg.positions) setPositions(msg.positions);
         if (msg.history) {
           setHistory((prev) => {
-            const combined = [...prev, ...msg.history];
+            const combined = [...prev, ...msg.history!];
             const seen = new Set<string>();
             const unique = combined.filter((p) => {
               if (seen.has(p.timestamp)) return false;
@@ -207,7 +238,7 @@ function DashboardContent() {
         setLastUpdate(new Date().toLocaleTimeString());
       }
     },
-    [selectedAccount]
+    [selectedAccount, selectedVps]
   );
 
   const token = getToken(selectedVps);
