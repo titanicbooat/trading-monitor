@@ -22,14 +22,17 @@ export function useWebSocket({
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
 
-  // Check if WebSocket is blocked (HTTPS page + ws:// URL)
-  const wsBlocked =
-    typeof window !== "undefined" &&
-    window.location.protocol === "https:" &&
-    url.startsWith("ws://");
+  // Check if WebSocket can actually connect
+  const canUseWs =
+    !!url &&
+    !(
+      typeof window !== "undefined" &&
+      window.location.protocol === "https:" &&
+      url.startsWith("ws://")
+    );
 
   const connect = useCallback(() => {
-    if (wsBlocked || !url) return;
+    if (!canUseWs) return;
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     const ws = new WebSocket(url);
@@ -52,32 +55,30 @@ export function useWebSocket({
     };
 
     ws.onerror = () => ws.close();
-  }, [url, reconnectMs, wsBlocked]);
+  }, [url, reconnectMs, canUseWs]);
 
   // Polling fallback when WebSocket is not available
   useEffect(() => {
-    if (wsBlocked) {
-      setConnected(true); // Show as "connected" since polling is active
-      // Trigger immediate refresh
+    if (!canUseWs) {
+      setConnected(true);
       onMessageRef.current({ type: "poll" });
-      // Poll at interval
       pollTimer.current = setInterval(() => {
         onMessageRef.current({ type: "poll" });
       }, pollIntervalMs);
       return () => clearInterval(pollTimer.current);
     }
-  }, [wsBlocked, pollIntervalMs]);
+  }, [canUseWs, pollIntervalMs]);
 
   // WebSocket connection
   useEffect(() => {
-    if (!wsBlocked) {
+    if (canUseWs) {
       connect();
       return () => {
         clearTimeout(reconnectTimer.current);
         wsRef.current?.close();
       };
     }
-  }, [connect, wsBlocked]);
+  }, [connect, canUseWs]);
 
   return { connected };
 }
