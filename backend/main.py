@@ -447,7 +447,9 @@ async def get_deposits(
 ):
     """Return deposit/withdrawal history for an account."""
     aid = account or _default_account_id()
-    deals = store.get_balance_deals(aid)
+    all_deals = store.get_balance_deals(aid)
+    # Filter out broker "Archived orders" — not real deposits
+    deals = [d for d in all_deals if "archived" not in (d.get("comment", "") or "").lower()]
 
     total_deposit = sum(d["amount"] for d in deals if d.get("deal_type") == "deposit")
     total_withdrawal = sum(d["amount"] for d in deals if d.get("deal_type") == "withdrawal")

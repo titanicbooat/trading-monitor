@@ -213,17 +213,18 @@ class MemoryStore:
             return [json.loads(row[0]) for row in rows]
 
     def get_deposit_totals(self, account_id: str) -> dict[str, float]:
-        """Aggregate deposit/withdrawal totals in SQL."""
-        with self._data_lock:
-            rows = self._conn.execute(
-                "SELECT deal_type, SUM(amount) FROM balance_deals WHERE account_id = ? GROUP BY deal_type",
-                (account_id,),
-            ).fetchall()
-            result = {"deposit": 0.0, "withdrawal": 0.0}
-            for row in rows:
-                if row[0] in result:
-                    result[row[0]] = row[1] or 0.0
-            return result
+        """Aggregate deposit/withdrawal totals, excluding broker archived orders."""
+        deals = self.get_balance_deals(account_id)
+        result = {"deposit": 0.0, "withdrawal": 0.0}
+        for d in deals:
+            comment = (d.get("comment") or "").lower()
+            if "archived" in comment:
+                continue
+            dt = d.get("deal_type", "")
+            amt = d.get("amount", 0)
+            if dt in result:
+                result[dt] += amt
+        return result
 
     # ── Snapshots History (SQLite) ────────────────────────────────────────
 

@@ -234,6 +234,9 @@ def fetch_balance_deals_mt5() -> list[dict]:
         profit = d.get("profit", 0)
         if profit == 0:
             continue
+        comment = d.get("comment", "")
+        if "archived" in comment.lower():
+            continue
         time_val = d.get("time")
         time_str = datetime.fromtimestamp(time_val, tz=timezone.utc).isoformat() if time_val else ""
         result.append({
