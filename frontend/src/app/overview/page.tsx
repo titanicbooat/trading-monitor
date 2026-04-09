@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   isAnyAuthenticated,
@@ -226,13 +226,9 @@ export default function OverviewPage() {
     }
   }
 
-  // Auto-refresh on WS updates — debounce to avoid flooding
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Auto-refresh on WS/poll updates
   const handleMessage = useCallback(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      loadOverview();
-    }, 5000);
+    loadOverview();
   }, []);
 
   const firstVps = getVpsList()[0];
